@@ -1,0 +1,451 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+        'uid', 'displayName', 'photoUrl', 'skillLevel',
+        'dominantHand', 'preferredCourtId', 'bio', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'displayName', 'photoUrl', 'skillLevel',
+        'dominantHand', 'preferredCourtId', 'bio', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.uid) &&
+      data.uid == userId &&
+      data.uid == request.auth.uid &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+      data.photoUrl is string && data.photoUrl.size() <= 500 &&
+      data.skillLevel is string && data.skillLevel in ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0+'] &&
+      data.dominantHand is string && data.dominantHand in ['Right', 'Left'] &&
+      data.preferredCourtId is string && data.preferredCourtId in ['court-1', 'court-2'] &&
+      data.bio is string && data.bio.size() <= 240 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'updatedAt']) &&
+      data.keys().hasOnly(['uid', 'email', 'phone', 'updatedAt']) &&
+      isValidId(data.uid) &&
+      data.uid == userId &&
+      data.uid == request.auth.uid &&
+      data.email is string && data.email.size() <= 160 &&
+      data.phone is string && data.phone.size() <= 32 &&
+      data.updatedAt is timestamp;
+    }
+
+    function isPaidOrLegacy(data) {
+      return !('paymentStatus' in data) || data.paymentStatus == 'paid';
+    }
+
+    function isValidBooking(data, bookingId) {
+      return data.keys().hasAll([
+        'bookingId', 'ownerId', 'courtId', 'courtName', 'date',
+        'startHour', 'durationHours', 'matchFormat', 'partnerNames',
+        'paddleRental', 'hourlyRate', 'totalAmount', 'status',
+        'checkInCode', 'checkedIn', 'scoreSummary', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'bookingId', 'ownerId', 'courtId', 'courtName', 'date',
+        'startHour', 'durationHours', 'matchFormat', 'partnerNames',
+        'paddleRental', 'hourlyRate', 'totalAmount', 'status',
+        'paymentStatus', 'paymentMethod', 'gcashReferenceNo',
+        'gcashSenderNumber', 'receiptNumber', 'paidAtIso',
+        'checkInCode', 'checkedIn', 'scoreSummary', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.bookingId) &&
+      data.bookingId == bookingId &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.courtId is string && data.courtId in ['court-1', 'court-2', 'court-3', 'court-4'] &&
+      data.courtName is string && data.courtName.size() >= 1 && data.courtName.size() <= 80 &&
+      data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.startHour is int && data.startHour >= 6 && data.startHour <= 21 &&
+      data.durationHours is int && data.durationHours in [1, 2] &&
+      data.matchFormat is string && data.matchFormat in ['singles', 'doubles', 'drills'] &&
+      data.partnerNames is string && data.partnerNames.size() <= 120 &&
+      data.paddleRental is bool &&
+      data.hourlyRate is number && data.hourlyRate > 0 && data.hourlyRate <= 25000 &&
+      data.totalAmount is number && data.totalAmount > 0 && data.totalAmount <= 50000 &&
+      data.status is string && data.status in ['awaiting_payment', 'pending', 'current', 'completed', 'cancelled'] &&
+      (!('paymentStatus' in data) || (data.paymentStatus is string && data.paymentStatus in ['unpaid', 'paid'])) &&
+      (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 24)) &&
+      (!('gcashReferenceNo' in data) || (data.gcashReferenceNo is string && data.gcashReferenceNo.size() <= 32)) &&
+      (!('gcashSenderNumber' in data) || (data.gcashSenderNumber is string && data.gcashSenderNumber.size() <= 20)) &&
+      (!('receiptNumber' in data) || (data.receiptNumber is string && data.receiptNumber.size() <= 32)) &&
+      (!('paidAtIso' in data) || (data.paidAtIso is string && data.paidAtIso.size() <= 40)) &&
+      data.checkInCode is string && data.checkInCode.size() >= 4 && data.checkInCode.size() <= 12 && data.checkInCode.matches('^[A-Z0-9]+$') &&
+      data.checkedIn is bool &&
+      data.scoreSummary is string && data.scoreSummary.size() <= 64 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidCourtSlot(data, slotKey) {
+      return data.keys().hasAll([
+        'slotKey', 'courtId', 'date', 'hour', 'startHour', 'durationHours',
+        'bookingId', 'ownerId', 'status', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'slotKey', 'courtId', 'date', 'hour', 'startHour', 'durationHours',
+        'bookingId', 'ownerId', 'status', 'createdAt'
+      ]) &&
+      isValidId(data.slotKey) &&
+      data.slotKey == slotKey &&
+      data.courtId is string && data.courtId in ['court-1', 'court-2', 'court-3', 'court-4'] &&
+      data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.hour is int && data.hour >= 6 && data.hour <= 22 &&
+      data.startHour is int && data.startHour >= 6 && data.startHour <= 21 &&
+      data.durationHours is int && data.durationHours in [1, 2] &&
+      isValidId(data.bookingId) &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.status is string && data.status == 'reserved' &&
+      data.slotKey == data.courtId + '_' + data.date + '_' + string(data.hour) &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidCourtSchedule(data, scheduleId) {
+      return data.keys().hasAll([
+        'scheduleId', 'bookingId', 'ownerId', 'playerDisplayName', 'courtId',
+        'courtName', 'date', 'startHour', 'durationHours', 'matchFormat',
+        'status', 'isActive', 'checkedIn', 'scoreSummary', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'scheduleId', 'bookingId', 'ownerId', 'playerDisplayName', 'courtId',
+        'courtName', 'date', 'startHour', 'durationHours', 'matchFormat',
+        'status', 'isActive', 'checkedIn', 'scoreSummary', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.scheduleId) &&
+      data.scheduleId == scheduleId &&
+      isValidId(data.bookingId) &&
+      data.bookingId == scheduleId &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      data.playerDisplayName is string && data.playerDisplayName.size() >= 1 && data.playerDisplayName.size() <= 80 &&
+      data.courtId is string && data.courtId in ['court-1', 'court-2', 'court-3', 'court-4'] &&
+      data.courtName is string && data.courtName.size() >= 1 && data.courtName.size() <= 80 &&
+      data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.startHour is int && data.startHour >= 6 && data.startHour <= 21 &&
+      data.durationHours is int && data.durationHours in [1, 2] &&
+      data.matchFormat is string && data.matchFormat in ['singles', 'doubles', 'drills'] &&
+      data.status is string && data.status in ['current', 'pending', 'completed'] &&
+      data.isActive is bool &&
+      data.checkedIn is bool &&
+      data.scoreSummary is string && data.scoreSummary.size() <= 64 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidTransaction(data, txId) {
+      return data.keys().hasAll([
+        'txId', 'ownerId', 'bookingId', 'receiptNumber', 'courtId', 'courtName',
+        'date', 'startHour', 'durationHours', 'matchFormat', 'amount',
+        'paymentMethod', 'gcashAccountName', 'gcashAccountNumber',
+        'gcashReferenceNo', 'gcashSenderNumber', 'paymentStatus',
+        'scheduleStatusAtPay', 'checkInCode', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'txId', 'ownerId', 'bookingId', 'receiptNumber', 'courtId', 'courtName',
+        'date', 'startHour', 'durationHours', 'matchFormat', 'amount',
+        'paymentMethod', 'gcashAccountName', 'gcashAccountNumber',
+        'gcashReferenceNo', 'gcashSenderNumber', 'paymentStatus',
+        'scheduleStatusAtPay', 'checkInCode', 'createdAt'
+      ]) &&
+      isValidId(data.txId) &&
+      data.txId == txId &&
+      isValidId(data.ownerId) &&
+      data.ownerId == request.auth.uid &&
+      isValidId(data.bookingId) &&
+      data.receiptNumber is string && data.receiptNumber.size() >= 4 && data.receiptNumber.size() <= 32 && data.receiptNumber.matches('^[A-Z0-9\\-]+$') &&
+      data.courtId is string && data.courtId in ['court-1', 'court-2', 'court-3', 'court-4'] &&
+      data.courtName is string && data.courtName.size() >= 1 && data.courtName.size() <= 80 &&
+      data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.startHour is int && data.startHour >= 6 && data.startHour <= 21 &&
+      data.durationHours is int && data.durationHours in [1, 2] &&
+      data.matchFormat is string && data.matchFormat in ['singles', 'doubles', 'drills'] &&
+      data.amount is number && data.amount > 0 && data.amount <= 50000 &&
+      data.paymentMethod is string && data.paymentMethod == 'GCash' &&
+      data.gcashAccountName is string && data.gcashAccountName.size() >= 1 && data.gcashAccountName.size() <= 60 &&
+      data.gcashAccountNumber is string && data.gcashAccountNumber.size() >= 7 && data.gcashAccountNumber.size() <= 24 &&
+      data.gcashReferenceNo is string && data.gcashReferenceNo.size() >= 6 && data.gcashReferenceNo.size() <= 32 &&
+      data.gcashSenderNumber is string && data.gcashSenderNumber.size() >= 7 && data.gcashSenderNumber.size() <= 20 &&
+      data.paymentStatus is string && data.paymentStatus == 'paid' &&
+      data.scheduleStatusAtPay is string && data.scheduleStatusAtPay in ['current', 'pending'] &&
+      data.checkInCode is string && data.checkInCode.size() >= 4 && data.checkInCode.size() <= 12 && data.checkInCode.matches('^[A-Z0-9]+$') &&
+      data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isEmailVerified() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isEmailVerified() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'photoUrl', 'skillLevel', 'dominantHand', 'preferredCourtId', 'bio', 'updatedAt'
+        ]);
+
+      match /private/info {
+        allow get: if isValidId(userId) && isOwner(userId);
+        allow create: if isEmailVerified() &&
+          isValidId(userId) &&
+          isOwner(userId) &&
+          isValidUserPrivateInfo(incoming(), userId) &&
+          incoming().updatedAt == request.time;
+        allow update: if isEmailVerified() &&
+          isValidId(userId) &&
+          isOwner(userId) &&
+          isValidUserPrivateInfo(incoming(), userId) &&
+          incoming().uid == existing().uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']);
+      }
+    }
+
+    // 2. Court Bookings
+    match /bookings/{bookingId} {
+      allow get: if isValidId(bookingId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isEmailVerified() &&
+        isValidId(bookingId) &&
+        isValidBooking(incoming(), bookingId) &&
+        incoming().courtId in ['court-1', 'court-2'] &&
+        incoming().keys().hasAll([
+          'paymentStatus', 'paymentMethod', 'gcashReferenceNo',
+          'gcashSenderNumber', 'receiptNumber', 'paidAtIso'
+        ]) &&
+        incoming().status == 'awaiting_payment' &&
+        incoming().paymentStatus == 'unpaid' &&
+        incoming().paymentMethod == '' &&
+        incoming().gcashReferenceNo == '' &&
+        incoming().gcashSenderNumber == '' &&
+        incoming().receiptNumber == '' &&
+        incoming().paidAtIso == '' &&
+        incoming().checkedIn == false &&
+        incoming().scoreSummary == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/courtSlots/$(incoming().courtId + '_' + incoming().date + '_' + string(incoming().startHour))) &&
+        (
+          incoming().durationHours == 1 ||
+          existsAfter(/databases/$(database)/documents/courtSlots/$(incoming().courtId + '_' + incoming().date + '_' + string(incoming().startHour + 1)))
+        );
+
+      allow update: if isEmailVerified() &&
+        isValidId(bookingId) &&
+        isValidBooking(incoming(), bookingId) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().bookingId == existing().bookingId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        !(existing().status in ['completed', 'cancelled']) &&
+        (
+          // Action: Complete GCash Payment (transitions awaiting_payment -> current or pending)
+          (
+            existing().status == 'awaiting_payment' &&
+            existing().paymentStatus == 'unpaid' &&
+            incoming().status in ['current', 'pending'] &&
+            incoming().paymentStatus == 'paid' &&
+            incoming().paymentMethod == 'GCash' &&
+            incoming().gcashReferenceNo.size() >= 6 &&
+            incoming().gcashSenderNumber.size() >= 7 &&
+            incoming().receiptNumber.size() >= 4 &&
+            incoming().paidAtIso.size() >= 10 &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'paymentStatus', 'paymentMethod', 'gcashReferenceNo',
+              'gcashSenderNumber', 'receiptNumber', 'paidAtIso', 'updatedAt'
+            ])
+          ) ||
+          // Action: Promote pending schedule to current schedule when ahead queue finishes
+          (
+            existing().status == 'pending' &&
+            isPaidOrLegacy(existing()) &&
+            incoming().status == 'current' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          ) ||
+          // Action: Edit partner notes on paid/legacy pending/current booking
+          (
+            isPaidOrLegacy(existing()) &&
+            incoming().status == existing().status &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['partnerNames', 'updatedAt'])
+          ) ||
+          // Action: Reschedule paid/legacy pending booking
+          (
+            existing().status == 'pending' &&
+            isPaidOrLegacy(existing()) &&
+            incoming().status == 'pending' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['date', 'startHour', 'updatedAt']) &&
+            existsAfter(/databases/$(database)/documents/courtSlots/$(incoming().courtId + '_' + incoming().date + '_' + string(incoming().startHour))) &&
+            (
+              incoming().durationHours == 1 ||
+              existsAfter(/databases/$(database)/documents/courtSlots/$(incoming().courtId + '_' + incoming().date + '_' + string(incoming().startHour + 1)))
+            )
+          ) ||
+          // Action: Check in on paid/legacy current match
+          (
+            existing().status == 'current' &&
+            isPaidOrLegacy(existing()) &&
+            incoming().status == 'current' &&
+            incoming().checkedIn == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['checkedIn', 'updatedAt'])
+          ) ||
+          // Action: Complete current match
+          (
+            existing().status == 'current' &&
+            isPaidOrLegacy(existing()) &&
+            incoming().status == 'completed' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'checkedIn', 'scoreSummary', 'updatedAt'])
+          ) ||
+          // Action: Cancel unpaid booking prior to payment (paid/active schedules are non-cancellable & non-refundable)
+          (
+            existing().status == 'awaiting_payment' &&
+            existing().paymentStatus == 'unpaid' &&
+            incoming().status == 'cancelled' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+    }
+
+    // 3. Court Slot Availability Locks
+    match /courtSlots/{slotKey} {
+      allow get: if isValidId(slotKey) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.status == 'reserved';
+
+      allow create: if isEmailVerified() &&
+        isValidId(slotKey) &&
+        isValidCourtSlot(incoming(), slotKey) &&
+        incoming().courtId in ['court-1', 'court-2'] &&
+        incoming().createdAt == request.time &&
+        existsAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)) &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.ownerId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.courtId == incoming().courtId &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.date == incoming().date;
+
+      allow delete: if isEmailVerified() &&
+        isValidId(slotKey) &&
+        (resource == null || existing().ownerId == request.auth.uid);
+    }
+
+    // 4. Shared Active Court Schedules (Non-PII Live Club Schedule & Queue Board)
+    match /courtSchedules/{scheduleId} {
+      allow get: if isValidId(scheduleId) && isSignedIn() && (existing().isActive == true || existing().ownerId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.isActive == true;
+
+      allow create: if isEmailVerified() &&
+        isValidId(scheduleId) &&
+        isValidCourtSchedule(incoming(), scheduleId) &&
+        incoming().courtId in ['court-1', 'court-2'] &&
+        incoming().isActive == true &&
+        incoming().status in ['current', 'pending'] &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)) &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.ownerId == request.auth.uid &&
+        isPaidOrLegacy(getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data) &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.status == incoming().status &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.courtId == incoming().courtId &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.date == incoming().date &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.startHour == incoming().startHour;
+
+      allow update: if isEmailVerified() &&
+        isValidId(scheduleId) &&
+        isValidCourtSchedule(incoming(), scheduleId) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().scheduleId == existing().scheduleId &&
+        incoming().bookingId == existing().bookingId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        existing().status != 'completed' &&
+        (
+          (
+            existing().status == 'pending' &&
+            incoming().status == 'current' &&
+            incoming().isActive == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          ) ||
+          (
+            existing().status == 'pending' &&
+            incoming().status == 'pending' &&
+            incoming().isActive == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['date', 'startHour', 'updatedAt'])
+          ) ||
+          (
+            existing().status == 'current' &&
+            incoming().status == 'current' &&
+            incoming().checkedIn == true &&
+            incoming().isActive == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['checkedIn', 'updatedAt'])
+          ) ||
+          (
+            existing().status == 'current' &&
+            incoming().status == 'completed' &&
+            incoming().isActive == false &&
+            incoming().checkedIn == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'isActive', 'checkedIn', 'scoreSummary', 'updatedAt'])
+          )
+        );
+    }
+
+    // 5. Immutable Transact Log & Official Purchase Receipts
+    match /transactions/{txId} {
+      allow get: if isValidId(txId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isEmailVerified() &&
+        isValidId(txId) &&
+        isValidTransaction(incoming(), txId) &&
+        incoming().courtId in ['court-1', 'court-2'] &&
+        incoming().createdAt == request.time &&
+        existsAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)) &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.ownerId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId)).data.paymentStatus == 'paid';
+    }
+  }
+}

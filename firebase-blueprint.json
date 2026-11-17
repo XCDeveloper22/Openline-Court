@@ -1,0 +1,508 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Publicly scoped pickleball player profile without PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "skillLevel": {
+          "type": "string",
+          "enum": ["2.5", "3.0", "3.5", "4.0", "4.5", "5.0+"]
+        },
+        "dominantHand": {
+          "type": "string",
+          "enum": ["Right", "Left"]
+        },
+        "preferredCourtId": {
+          "type": "string",
+          "enum": ["court-1", "court-2"]
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "photoUrl",
+        "skillLevel",
+        "dominantHand",
+        "preferredCourtId",
+        "bio",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII document for authenticated player contact information.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "phone", "updatedAt"]
+    },
+    "CourtBooking": {
+      "title": "CourtBooking",
+      "description": "Pickleball court reservation, GCash payment state, and match schedule record.",
+      "type": "object",
+      "properties": {
+        "bookingId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "courtId": {
+          "type": "string",
+          "enum": ["court-1", "court-2"]
+        },
+        "courtName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startHour": {
+          "type": "number"
+        },
+        "durationHours": {
+          "type": "number"
+        },
+        "matchFormat": {
+          "type": "string",
+          "enum": ["singles", "doubles", "drills"]
+        },
+        "partnerNames": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "paddleRental": {
+          "type": "boolean"
+        },
+        "hourlyRate": {
+          "type": "number"
+        },
+        "totalAmount": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["awaiting_payment", "pending", "current", "completed", "cancelled"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["unpaid", "paid"]
+        },
+        "paymentMethod": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "gcashReferenceNo": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "gcashSenderNumber": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "receiptNumber": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "paidAtIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "checkInCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "checkedIn": {
+          "type": "boolean"
+        },
+        "scoreSummary": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "bookingId",
+        "ownerId",
+        "courtId",
+        "courtName",
+        "date",
+        "startHour",
+        "durationHours",
+        "matchFormat",
+        "partnerNames",
+        "paddleRental",
+        "hourlyRate",
+        "totalAmount",
+        "status",
+        "paymentStatus",
+        "paymentMethod",
+        "gcashReferenceNo",
+        "gcashSenderNumber",
+        "receiptNumber",
+        "paidAtIso",
+        "checkInCode",
+        "checkedIn",
+        "scoreSummary",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CourtSlot": {
+      "title": "CourtSlot",
+      "description": "Public court hourly availability lock without player PII.",
+      "type": "object",
+      "properties": {
+        "slotKey": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "courtId": {
+          "type": "string",
+          "enum": ["court-1", "court-2"]
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "hour": {
+          "type": "number"
+        },
+        "startHour": {
+          "type": "number"
+        },
+        "durationHours": {
+          "type": "number"
+        },
+        "bookingId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["reserved"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "slotKey",
+        "courtId",
+        "date",
+        "hour",
+        "startHour",
+        "durationHours",
+        "bookingId",
+        "ownerId",
+        "status",
+        "createdAt"
+      ]
+    },
+    "PaymentTransaction": {
+      "title": "PaymentTransaction",
+      "description": "Immutable GCash purchase receipt record for player transact log.",
+      "type": "object",
+      "properties": {
+        "txId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookingId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "receiptNumber": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "courtId": {
+          "type": "string",
+          "enum": ["court-1", "court-2"]
+        },
+        "courtName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startHour": {
+          "type": "number"
+        },
+        "durationHours": {
+          "type": "number"
+        },
+        "matchFormat": {
+          "type": "string",
+          "enum": ["singles", "doubles", "drills"]
+        },
+        "amount": {
+          "type": "number"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["GCash"]
+        },
+        "gcashAccountName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "gcashAccountNumber": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "gcashReferenceNo": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 32
+        },
+        "gcashSenderNumber": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 20
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["paid"]
+        },
+        "scheduleStatusAtPay": {
+          "type": "string",
+          "enum": ["current", "pending"]
+        },
+        "checkInCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "txId",
+        "ownerId",
+        "bookingId",
+        "receiptNumber",
+        "courtId",
+        "courtName",
+        "date",
+        "startHour",
+        "durationHours",
+        "matchFormat",
+        "amount",
+        "paymentMethod",
+        "gcashAccountName",
+        "gcashAccountNumber",
+        "gcashReferenceNo",
+        "gcashSenderNumber",
+        "paymentStatus",
+        "scheduleStatusAtPay",
+        "checkInCode",
+        "createdAt"
+      ]
+    },
+    "CourtSchedule": {
+      "title": "CourtSchedule",
+      "description": "Shared non-PII active court schedule and queue record visible to all authenticated users across desktop and mobile.",
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookingId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "playerDisplayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "courtId": {
+          "type": "string",
+          "enum": ["court-1", "court-2"]
+        },
+        "courtName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startHour": {
+          "type": "number"
+        },
+        "durationHours": {
+          "type": "number"
+        },
+        "matchFormat": {
+          "type": "string",
+          "enum": ["singles", "doubles", "drills"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["current", "pending", "completed"]
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "checkedIn": {
+          "type": "boolean"
+        },
+        "scoreSummary": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "scheduleId",
+        "bookingId",
+        "ownerId",
+        "playerDisplayName",
+        "courtId",
+        "courtName",
+        "date",
+        "startHour",
+        "durationHours",
+        "matchFormat",
+        "status",
+        "isActive",
+        "checkedIn",
+        "scoreSummary",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Player profile preferences and pickleball ratings."
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Private PII document containing verified email and optional phone."
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/CourtBooking" },
+      "description": "Player court reservations across awaiting_payment, pending, current, and completed schedules."
+    },
+    "/courtSlots/{slotKey}": {
+      "schema": { "$ref": "#/entities/CourtSlot" },
+      "description": "Non-PII court hour locks and queue ordering without player PII."
+    },
+    "/courtSchedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/CourtSchedule" },
+      "description": "Shared non-PII live Current Schedule and Next Schedule board visible to all signed-in players across devices."
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/PaymentTransaction" },
+      "description": "Immutable GCash purchase receipts for player transact log."
+    }
+  }
+}
