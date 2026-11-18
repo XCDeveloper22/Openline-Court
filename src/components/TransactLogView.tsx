@@ -11,24 +11,28 @@ import {
   QueueAnalysis
 } from '../data/courts';
 import { supabaseCancelUnpaidBooking } from '../lib/supabaseClub';
-import { CourtBooking, CourtSlot, PaymentTransaction } from '../types';
+import { CourtBooking, CourtSchedule, CourtSlot, PaymentTransaction } from '../types';
 
 interface TransactLogViewProps {
   bookings: CourtBooking[];
   transactions: PaymentTransaction[];
   reservedSlots: CourtSlot[];
+  sharedSchedules: CourtSchedule[];
   loading: boolean;
   onStartPayment: (booking: CourtBooking, queueInfo: QueueAnalysis) => void;
   onShowTransactionReceipt: (tx: PaymentTransaction, matchingBooking?: CourtBooking | null) => void;
+  onBookCourt?: () => void;
 }
 
 export const TransactLogView: React.FC<TransactLogViewProps> = ({
   bookings,
   transactions,
   reservedSlots,
+  sharedSchedules,
   loading,
   onStartPayment,
-  onShowTransactionReceipt
+  onShowTransactionReceipt,
+  onBookCourt
 }) => {
   const [copied, setCopied] = useState(false);
   const [busyCancelId, setBusyCancelId] = useState<string | null>(null);
@@ -117,12 +121,11 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
   return (
     <div className="space-y-6 sm:space-y-8 2xl:space-y-10">
       <div>
-        <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.15rem)] font-semibold tracking-tight text-slate-900">
-          Transact Log &amp; Official Receipts
+        <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
+          Receipts &amp; Payments
         </h1>
-        <p className="mt-1.5 text-sm 2xl:text-base text-slate-600 max-w-2xl">
-          Pay pending reservations via GCash and open any purchase receipt to show to the court
-          watcher or manager. Paid schedules are final (no cancellations or refunds).
+        <p className="mt-1 text-sm text-slate-600">
+          Pay pending reservations via GCash and open your receipts for check-in.
         </p>
       </div>
 
@@ -197,7 +200,9 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
                 booking.courtId,
                 booking.date,
                 booking.startHour,
-                booking.bookingId
+                booking.bookingId,
+                Date.now(),
+                sharedSchedules
               );
               const isCancelling = busyCancelId === booking.bookingId;
 
@@ -283,9 +288,19 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
         </div>
 
         {sortedTransactions.length === 0 ? (
-          <div className="p-8 sm:p-10 text-center text-sm text-slate-600">
-            No paid receipts yet. Book a court via <strong className="text-[#831843]">Booked Here</strong>{' '}
-            in the navigation menu and complete GCash payment to receive your official watcher receipt.
+          <div className="p-8 sm:p-10 text-center space-y-3">
+            <p className="text-sm text-slate-600 max-w-md mx-auto">
+              No paid receipts yet. Book a court and pay via GCash QR to save your receipt here.
+            </p>
+            {onBookCourt && (
+              <button
+                type="button"
+                onClick={onBookCourt}
+                className="min-h-[44px] px-5 py-2.5 bg-[#BE185D] text-white text-sm font-semibold rounded-xl hover:bg-[#9D174D] transition-colors cursor-pointer"
+              >
+                Book a Court
+              </button>
+            )}
           </div>
         ) : filteredTransactions.length === 0 ? (
           <div className="p-8 sm:p-10 text-center space-y-2">

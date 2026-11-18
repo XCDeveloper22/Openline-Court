@@ -17,7 +17,7 @@ const CATEGORY_TABS: { id: FaqCategory; label: string }[] = [
   { id: 'all', label: 'All Topics' },
   { id: 'court-usage', label: 'Court Usage' },
   { id: 'gcash-payment', label: 'GCash Payment' },
-  { id: 'schedule-logic', label: 'Current vs Pending' }
+  { id: 'schedule-logic', label: 'Schedules' }
 ];
 
 const FAQ_ITEMS: FaqItem[] = [
@@ -42,7 +42,7 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'Court Usage',
     question: 'How early should we arrive and how do we check in at Soriano, Cabadbaran?',
     answer:
-      'Arrive at least 5 to 10 minutes before your scheduled Philippine Time start hour. Proceed straight to the Watcher & Check-In Desk near the Soriano Road entrance and present your 6-character Entry Code (OLxxxx) or Official Receipt from Transact Log.'
+      'Arrive 5 to 10 minutes before your Philippine Time slot. Show your 6-character Entry Code (OLxxxx) or Receipt from Receipts & Pay at the Watcher Check-In Desk near the Soriano Road entrance.'
   },
   {
     id: 'no-cancel-resched',
@@ -58,14 +58,14 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'Court Usage',
     question: 'Are pickleball paddles and balls available if I do not bring my own?',
     answer:
-      'Yes. During Step 2 of Booked Here, you can add a Paddle & Ball Kit rental for a flat ₱100 add-on. The watcher at the check-in desk will hand over your paddles when verifying your entry code.'
+      'Yes. During Step 2 of Book Court, you can add a Paddle & Ball Kit rental for a flat ₱100 add-on. The watcher at the check-in desk will hand over your paddles when verifying your entry code.'
   },
   {
     id: 'gcash-steps',
     category: 'gcash-payment',
     categoryLabel: 'GCash Payment',
     question: 'How does the GCash QR payment process work?',
-    answer: `After selecting your court, date, and duration in Booked Here, a GCash QR modal opens for ${GCASH_ACCOUNT.accountName} (${GCASH_ACCOUNT.accountNumber}). Scan the QR code using your GCash app, pay the exact total, then enter your 13-digit GCash Reference Number and mobile sender number to confirm immediately.`
+    answer: `After selecting your court, date, and duration in Book Court, a GCash QR modal opens for ${GCASH_ACCOUNT.accountName} (${GCASH_ACCOUNT.accountNumber}). Scan the QR code using your GCash app, pay the exact total, then enter your 13-digit GCash Reference Number and mobile sender number to confirm immediately.`
   },
   {
     id: 'unpaid-awaiting',
@@ -73,7 +73,7 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'GCash Payment',
     question: 'What happens if I close the GCash QR screen before completing payment?',
     answer:
-      'Your draft slot is saved under Pending Payment in Transact Log so you can finish scanning and submitting your GCash reference without re-entering match details. Unpaid bookings do not enter Current Schedule or Next Schedule until GCash verification is submitted.'
+      'Your draft slot is saved under Pending Payment in Receipts & Pay so you can finish scanning and submitting your GCash reference without re-entering match details. Unpaid bookings do not enter Current Schedule or Next Schedule until GCash verification is submitted.'
   },
   {
     id: 'receipt-proof',
@@ -81,36 +81,36 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'GCash Payment',
     question: 'Where do I find my Official Receipt and Check-In Code after paying?',
     answer:
-      'Open Transact Log in the navigation menu to view all paid GCash receipts, reference numbers, timestamps, and entry codes. You can tap Show Receipt at any time for the court watcher to verify.'
+      'Open Receipts & Pay in the menu to view all paid GCash receipts, reference numbers, timestamps, and entry codes. Tap View Receipt at any time for the court watcher to verify.'
   },
   {
     id: 'current-vs-pending',
     category: 'schedule-logic',
-    categoryLabel: 'Current vs Pending',
-    question: 'How does the app decide between Current Schedule and Pending (Next Schedule)?',
+    categoryLabel: 'Schedules',
+    question: 'How does the app decide between Current Schedule and Next Schedule?',
     answer:
-      'Every paid booking checks the live queue on that exact court and date. If there are 0 earlier paid bookings ahead of your start time, your booking enters Current Schedule right away. If another match is already ahead of your hour, your booking enters Pending (Next Schedule) in queue order (#2, #3, and so on).'
+      'Every paid booking checks the live queue on that exact court and date. If no earlier paid bookings are ahead of your start time, your booking enters Current Schedule right away. If another match is already ahead, your booking enters Next Schedule in queue order (#2, #3, and so on).'
   },
   {
     id: 'auto-promotion',
     category: 'schedule-logic',
-    categoryLabel: 'Current vs Pending',
-    question: 'When does a Pending (Next Schedule) booking move to Current Schedule?',
+    categoryLabel: 'Schedules',
+    question: 'When does a Next Schedule booking move to Current Schedule?',
     answer:
-      'Promotion is automatic across all devices. As soon as the match ahead of you finishes or expires, your booking promotes from Pending to Current Schedule immediately and triggers a browser push + in-app notification.'
+      'Promotion is automatic across all devices. As soon as the match ahead of you finishes or expires, your booking moves from Next Schedule to Current Schedule and triggers a push + in-app alert.'
   },
   {
     id: 'timer-accuracy',
     category: 'schedule-logic',
-    categoryLabel: 'Current vs Pending',
+    categoryLabel: 'Schedules',
     question: 'When does the Current Schedule countdown timer start and finish?',
     answer:
-      'Timers run strictly on Philippine Time (Asia/Manila). If you booked an 8:00 PM – 9:00 PM PHT slot early, the board counts down until start; at 8:00 PM PHT the 1-hour timer starts automatically, and at 9:00 PM PHT it automatically becomes a Finished Schedule and moves to Your Completed Match Log.'
+      'Timers run strictly on Philippine Time (Asia/Manila). If you booked an 8:00 PM – 9:00 PM PHT slot early, the board counts down until start; at 8:00 PM PHT the 1-hour timer starts automatically, and at 9:00 PM PHT it automatically becomes completed and moves to Receipts & Pay.'
   },
   {
     id: 'shared-visibility',
     category: 'schedule-logic',
-    categoryLabel: 'Current vs Pending',
+    categoryLabel: 'Schedules',
     question: 'Can other players see my court schedule on their phones and desktops?',
     answer:
       'Yes. Both Current Schedule and Next Schedule sync live across desktop and mobile devices so every player at the club can see which court is occupied and which turn is next—while private GCash numbers and receipts remain visible only to you.'
@@ -149,43 +149,42 @@ export const HelpFaqView: React.FC = () => {
         <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.15rem)] font-semibold tracking-tight text-slate-900">
           Help &amp; FAQ
         </h1>
-        <p className="mt-1.5 text-sm text-slate-600 max-w-2xl">
-          Self-service answers on Court 1 &amp; Court 2 usage, GCash QR payments, and how Current vs.
-          Pending schedules advance in Philippine Time.
+        <p className="mt-1 text-sm text-slate-600 max-w-2xl">
+          Quick answers on courts, GCash QR payments, and live Philippine Time schedules.
         </p>
       </div>
 
       {/* Quick Schedule Mechanism Strip */}
       <section className="surface-2026 rounded-3xl p-5 sm:p-6">
         <h2 className="font-display text-sm font-semibold text-[#831843]">
-          How Booking &amp; Schedule Queuing Works
+          How It Works
         </h2>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
           <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-pink-200/75 space-y-1.5">
             <span className="font-mono text-xs font-bold text-[#BE185D] tabular-nums">
-              01 · GCash QR Pay
+              1. Book &amp; Pay
             </span>
-            <p className="text-sm font-semibold text-slate-900">Pick Court, Date &amp; Pay ₱250/hr</p>
+            <p className="text-sm font-semibold text-slate-900">Pick Court &amp; Pay ₱250/hr</p>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Submit your 13-digit GCash reference number to lock the slot and receive your receipt.
+              Submit your GCash reference number to lock your slot and get your receipt.
             </p>
           </div>
           <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-pink-200/75 space-y-1.5">
             <span className="font-mono text-xs font-bold text-[#BE185D] tabular-nums">
-              02 · Pending (Next Schedule)
+              2. Next Schedule
             </span>
             <p className="text-sm font-semibold text-slate-900">Queued Behind Active Turn</p>
             <p className="text-xs text-slate-600 leading-relaxed">
-              If an earlier turn is scheduled on that court, your booking waits in queue order.
+              If an earlier match is booked on that court, your turn waits in queue order.
             </p>
           </div>
           <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-pink-200/75 space-y-1.5">
             <span className="font-mono text-xs font-bold text-[#BE185D] tabular-nums">
-              03 · Current Schedule
+              3. Current Schedule
             </span>
             <p className="text-sm font-semibold text-slate-900">Auto-Promotes &amp; Alerts</p>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Once 0 turns remain ahead, your status becomes Current with a 5-min pre-match alert.
+              When your turn reaches the front, it moves to Current Schedule with a 5-min alert.
             </p>
           </div>
         </div>

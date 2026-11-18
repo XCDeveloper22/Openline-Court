@@ -44,7 +44,8 @@ import {
   CourtSchedule,
   CourtSlot,
   MatchFormat,
-  PaymentTransaction
+  PaymentTransaction,
+  TabId
 } from '../types';
 import { GCashQRCode } from './GCashQRCode';
 
@@ -59,6 +60,7 @@ interface BookCourtViewProps {
   sharedSchedules: CourtSchedule[];
   loadingSlots: boolean;
   onShowReceipt: (booking: CourtBooking, tx?: PaymentTransaction | null) => void;
+  onNavigateTab?: (tab: TabId) => void;
 }
 
 const STEP_LABELS: {
@@ -81,7 +83,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
   reservedSlots,
   sharedSchedules,
   loadingSlots,
-  onShowReceipt
+  onShowReceipt,
+  onNavigateTab
 }) => {
   const upcomingDates = useMemo(() => getUpcomingDates(14), []);
   const topRef = useRef<HTMLDivElement | null>(null);
@@ -163,11 +166,28 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
   }, [selectedCourtId, selectedDate, durationHours, slotMap]);
 
   const selectedQueueInfo = useMemo(() => {
+    const now = Date.now();
     if (selectedHour === null) {
-      return computeCourtQueueInfo(reservedSlots, selectedCourtId, selectedDate, 23);
+      return computeCourtQueueInfo(
+        reservedSlots,
+        selectedCourtId,
+        selectedDate,
+        23,
+        undefined,
+        now,
+        sharedSchedules
+      );
     }
-    return computeCourtQueueInfo(reservedSlots, selectedCourtId, selectedDate, selectedHour);
-  }, [reservedSlots, selectedCourtId, selectedDate, selectedHour]);
+    return computeCourtQueueInfo(
+      reservedSlots,
+      selectedCourtId,
+      selectedDate,
+      selectedHour,
+      undefined,
+      now,
+      sharedSchedules
+    );
+  }, [reservedSlots, sharedSchedules, selectedCourtId, selectedDate, selectedHour]);
 
   const courtFee = selectedCourt.hourlyRate * durationHours;
   const equipmentFee = paddleRental ? PADDLE_RENTAL_FEE : 0;
@@ -203,7 +223,10 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         reservedSlots,
         selectedCourt.id,
         selectedDate,
-        selectedHour
+        selectedHour,
+        undefined,
+        Date.now(),
+        sharedSchedules
       );
 
       const nowIso = new Date().toISOString();
@@ -325,7 +348,9 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         activePaymentBooking.courtId,
         activePaymentBooking.date,
         activePaymentBooking.startHour,
-        activePaymentBooking.bookingId
+        activePaymentBooking.bookingId,
+        Date.now(),
+        sharedSchedules
       );
     const targetStatus: 'current' | 'pending' = queue.aheadCount === 0 ? 'current' : 'pending';
 
@@ -422,19 +447,18 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
     <div ref={topRef} className="space-y-6 sm:space-y-8 2xl:space-y-10">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.15rem)] font-semibold tracking-tight text-slate-900">
-            Booked Here · Quick Court Reservation
+          <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
+            Book a Court
           </h1>
-          <p className="mt-1.5 text-sm 2xl:text-base text-slate-600 max-w-2xl">
-            Click a court, pick your date &amp; duration, scan the GCash QR code to pay, and
-            you&apos;re done. Confirmed schedules are final (no cancellations or refunds).
+          <p className="mt-1 text-sm text-slate-600">
+            Choose a court, pick your date and time, then pay via GCash QR.
           </p>
         </div>
 
         {/* Continuous 4-Step Flow Indicator */}
         <ol
           aria-label="Booking Progress"
-          className="surface-2026 grid grid-cols-4 gap-1 sm:gap-1.5 rounded-2xl p-1.5 xl:min-w-[460px] shrink-0"
+          className="surface-2026 grid grid-cols-4 gap-1 sm:gap-1.5 rounded-2xl p-1.5 xl:min-w-[420px] shrink-0"
         >
           {STEP_LABELS.map((step, idx) => {
             const isCurrent = step.id === flowStep;
@@ -488,7 +512,9 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                 b.courtId,
                 b.date,
                 b.startHour,
-                b.bookingId
+                b.bookingId,
+                Date.now(),
+                sharedSchedules
               );
               setActivePaymentBooking(b);
               setActiveQueueInfo(qInfo);
@@ -508,12 +534,9 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       {/* STEP 1: CLICK A COURT */}
       {flowStep === 'court' && (
         <section aria-label="Step 1: Choose Pickleball Court" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-base sm:text-lg font-semibold text-slate-900">
-              Step 1 · Click a Court to Begin
-            </h2>
-            <span className="text-xs text-pink-900/75">Tap any court to pick date &amp; duration</span>
-          </div>
+          <h2 className="font-display text-base sm:text-lg font-semibold text-slate-900">
+            1. Choose a Court
+          </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 2xl:gap-8">
             {COURTS.map((court) => {
@@ -1090,21 +1113,37 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
           </div>
 
           <p className="text-xs text-slate-500">
-            Use the navigation bar to view your turn in{' '}
+            View your turn in{' '}
             <strong className="text-[#831843]">
               {completedBooking.status === 'current' ? 'Current Schedule' : 'Next Schedule'}
             </strong>{' '}
-            or check <strong className="text-[#831843]">Transact Log</strong>.
+            or check your receipt in <strong className="text-[#831843]">Receipts &amp; Pay</strong>.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            {onNavigateTab && (
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigateTab(completedBooking.status === 'current' ? 'current' : 'pending')
+                }
+                className="flex-1 min-h-[48px] px-4 py-2.5 bg-[#BE185D] text-white text-sm font-semibold rounded-xl hover:bg-[#9D174D] inline-flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>
+                  {completedBooking.status === 'current'
+                    ? 'View Current Schedule'
+                    : 'View Next Schedule'}
+                </span>
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onShowReceipt(completedBooking, completedTx)}
-              className="flex-1 min-h-[48px] px-4 py-2.5 bg-[#BE185D] text-white text-sm font-semibold rounded-xl hover:bg-[#9D174D] inline-flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 min-h-[48px] px-4 py-2.5 border border-pink-200 text-[#831843] bg-pink-50/70 text-sm font-semibold rounded-xl hover:bg-pink-100 inline-flex items-center justify-center gap-2 cursor-pointer"
             >
               <Receipt className="w-4 h-4" aria-hidden="true" />
-              <span>View Official Receipt</span>
+              <span>View Receipt</span>
             </button>
             <button
               type="button"
@@ -1113,9 +1152,9 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                 setCompletedTx(null);
                 setFlowStep('court');
               }}
-              className="flex-1 min-h-[48px] px-4 py-2.5 border border-pink-200 text-[#831843] bg-pink-50/60 text-sm font-semibold rounded-xl hover:bg-pink-100 cursor-pointer"
+              className="flex-1 min-h-[48px] px-4 py-2.5 border border-pink-200 text-slate-700 bg-white text-sm font-semibold rounded-xl hover:bg-pink-50 cursor-pointer"
             >
-              Book Another Court
+              Book Another
             </button>
           </div>
         </section>

@@ -3,11 +3,8 @@ import { ExternalLink, MapPin } from 'lucide-react';
 import { CLUB_INFO } from '../data/courts';
 import { supabase } from '../supabaseClient.js';
 import { FacebookLogo } from './FacebookLogo';
-import { SignInForm } from './SignInForm';
-import { SignUpForm } from './SignUpForm';
 
 export const LoginScreen: React.FC = () => {
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [signingIn, setSigningIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -75,68 +72,26 @@ export const LoginScreen: React.FC = () => {
           </div>
 
           <h1
-            className="mt-7 sm:mt-8 font-display text-[clamp(1.65rem,3vw,2.5rem)] leading-[1.15] font-semibold tracking-tight text-slate-900"
+            className="mt-7 font-display text-[clamp(1.65rem,3vw,2.35rem)] leading-[1.15] font-semibold tracking-tight text-slate-900"
             style={{ textWrap: 'balance' }}
           >
-            Reserve your court and manage every match.
+            Book a pickleball court in seconds.
           </h1>
 
-          <p className="mt-4 text-sm sm:text-base text-slate-600 leading-relaxed">
-            Sign in with your Gmail account to book pickleball courts, pay via GCash, and track
-            your schedule and watcher receipts.
+          <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
+            Sign in to reserve Court 1 or Court 2, pay via GCash QR, and follow live schedules.
           </p>
 
           {errorMsg && (
             <div
               role="alert"
-              className="mt-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-800"
+              className="mt-5 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-800"
             >
               {errorMsg}
             </div>
           )}
 
           <div className="mt-7">
-            <div
-              className="grid grid-cols-2 gap-1 p-1 bg-pink-50 border border-pink-200/80 rounded-xl mb-4"
-              role="tablist"
-              aria-label="Account authentication mode"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={authMode === 'signin'}
-                onClick={() => setAuthMode('signin')}
-                className={`min-h-[40px] py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                  authMode === 'signin'
-                    ? 'bg-white text-[#831843] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={authMode === 'signup'}
-                onClick={() => setAuthMode('signup')}
-                className={`min-h-[40px] py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                  authMode === 'signup'
-                    ? 'bg-white text-[#831843] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
-
-            {authMode === 'signin' ? <SignInForm /> : <SignUpForm />}
-
-            <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-              <div className="flex-1 h-px bg-pink-200/70" />
-              <span>or</span>
-              <div className="flex-1 h-px bg-pink-200/70" />
-            </div>
-
             <button
               type="button"
               onClick={handleGoogleSignIn}
@@ -166,7 +121,7 @@ export const LoginScreen: React.FC = () => {
                       strokeLinecap="round"
                     />
                   </svg>
-                  <span>Connecting Gmail Account...</span>
+                  <span>Connecting Google...</span>
                 </>
               ) : (
                 <>
@@ -176,31 +131,18 @@ export const LoginScreen: React.FC = () => {
                       d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.8-5.4 3.8-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12s4.3 9.5 9.5 9.5c5.5 0 9.1-3.9 9.1-9.3 0-.6-.1-1.1-.2-1.6H12z"
                     />
                   </svg>
-                  <span>Sign in with Gmail Account</span>
+                  <span>Continue with Google</span>
                 </>
               )}
             </button>
           </div>
 
-          <div className="mt-10 pt-6 border-t border-pink-200/80 grid grid-cols-3 gap-4 text-left">
-            <div>
-              <p className="font-mono text-xs sm:text-sm font-semibold text-slate-900 tabular-nums">
-                7 AM – 10 PM
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Philippine Time</p>
-            </div>
-            <div>
-              <p className="font-mono text-xs sm:text-sm font-semibold text-slate-900 tabular-nums">
-                1–2 hrs
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Session lengths</p>
-            </div>
-            <div>
-              <p className="font-mono text-xs sm:text-sm font-semibold text-slate-900 tabular-nums">
-                ₱250/hr
-              </p>
-              <p className="mt-1 text-xs text-slate-500">2 courts available</p>
-            </div>
+          <div className="mt-8 pt-5 border-t border-pink-200/70 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 font-mono tabular-nums">
+            <span>7 AM – 10 PM PHT</span>
+            <span aria-hidden="true">·</span>
+            <span>₱250/hr</span>
+            <span aria-hidden="true">·</span>
+            <span>2 Courts</span>
           </div>
 
           <div className="mt-5 pt-5 border-t border-pink-200/60 flex flex-col gap-2 text-xs text-slate-600">

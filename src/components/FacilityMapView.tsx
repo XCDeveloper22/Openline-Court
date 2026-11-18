@@ -47,7 +47,7 @@ const FACILITY_LANDMARKS: LandmarkNote[] = [
     id: 'desk',
     label: 'Watcher & QR Check-In Desk',
     detail:
-      'Located straight ahead of the entrance before the court bays. Show your OL entry code or GCash receipt from Transact Log before stepping on court.',
+      'Located straight ahead of the entrance before the court bays. Show your OL entry code or GCash receipt from Receipts & Pay before stepping on court.',
     icon: ShieldCheck
   },
   {
@@ -142,12 +142,10 @@ export const FacilityMapView: React.FC<FacilityMapViewProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.15rem)] font-semibold tracking-tight text-slate-900">
-            Soriano Facility Floor Plan
+            Court Map
           </h1>
-          <p className="mt-1.5 text-sm text-slate-600 max-w-2xl">
-            Interactive layout of Court 1 and Court 2 at {CLUB_INFO.location}. Tap either court on
-            the floor plan to inspect live match status, lighting specs, and walking directions from
-            the main entrance.
+          <p className="mt-1 text-sm text-slate-600 max-w-2xl">
+            {CLUB_INFO.location}. Tap Court 1 or Court 2 on the map to check live status and directions.
           </p>
         </div>
 
@@ -685,11 +683,10 @@ export const FacilityMapView: React.FC<FacilityMapViewProps> = ({
       <section className="surface-2026 rounded-3xl p-5 sm:p-7 space-y-5">
         <div>
           <h2 className="font-display text-lg font-semibold text-slate-900">
-            Facility Zones &amp; Check-In Flow
+            Facility Zones &amp; Check-In
           </h2>
           <p className="mt-1 text-xs sm:text-sm text-slate-600">
-            Four key areas inside the Openline Court compound to help first-time players check in
-            smoothly.
+            Quick check-in guide for arriving players.
           </p>
         </div>
 

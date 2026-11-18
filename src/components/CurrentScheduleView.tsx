@@ -24,6 +24,7 @@ interface CurrentScheduleViewProps {
   reservedSlots: CourtSlot[];
   loading: boolean;
   onShowReceipt: (booking: CourtBooking) => void;
+  onBookCourt?: () => void;
 }
 
 export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
@@ -32,7 +33,8 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
   sharedSchedules,
   reservedSlots,
   loading,
-  onShowReceipt
+  onShowReceipt,
+  onBookCourt
 }) => {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -125,17 +127,15 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
     <div className="space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.15rem)] font-semibold tracking-tight text-slate-900">
-            Current Schedule · Live Court Board
+          <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
+            Current Schedule
           </h1>
-          <p className="mt-1.5 text-sm text-slate-600 max-w-2xl">
-            Live schedules across all devices in Philippine Time. Timers automatically start
-            counting at each slot&apos;s start time and automatically finish once the session ends
-            (no cancellations or refunds).
+          <p className="mt-1 text-sm text-slate-600">
+            Live court sessions and countdown timers in Philippine Time.
           </p>
         </div>
-        <div className="px-4 py-2.5 rounded-2xl surface-2026 flex items-center justify-between sm:justify-start gap-2.5 shrink-0">
-          <span className="text-xs font-medium text-slate-500">Philippine Time (PHT)</span>
+        <div className="px-4 py-2 rounded-xl surface-2026 flex items-center justify-between sm:justify-start gap-2.5 shrink-0">
+          <span className="text-xs font-medium text-slate-500">PHT</span>
           <span className="font-mono text-xs sm:text-sm font-semibold text-[#831843] tabular-nums">
             {liveClockLabel}
           </span>
@@ -228,9 +228,7 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
                 </div>
               ) : (
                 <div className="pt-2.5 border-t border-pink-100">
-                  <p className="text-xs text-slate-500">
-                    Open for booking via Booked Here in the navigation menu
-                  </p>
+                  <p className="text-xs text-slate-500">Available to book now</p>
                 </div>
               )}
             </div>
@@ -279,15 +277,25 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
       </div>
 
       {visibleCurrentSchedules.length === 0 ? (
-        <div className="surface-2026 rounded-3xl p-8 sm:p-10 text-center">
+        <div className="surface-2026 rounded-3xl p-8 sm:p-10 text-center space-y-3">
           <Clock3 className="w-8 h-8 text-pink-400 mx-auto" aria-hidden="true" />
-          <h2 className="mt-3 font-display text-lg font-semibold text-slate-900">
+          <h2 className="font-display text-lg font-semibold text-slate-900">
             No active schedule on {courtFilter === 'all' ? 'either court' : 'this court'} right now
           </h2>
-          <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
-            Select <strong className="text-[#831843]">Booked Here</strong> in the navigation menu
-            to reserve a court and complete GCash QR payment.
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            Pick a court and time slot to start a session right away.
           </p>
+          {onBookCourt && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={onBookCourt}
+                className="min-h-[44px] px-5 py-2.5 bg-[#BE185D] text-white text-sm font-semibold rounded-xl hover:bg-[#9D174D] transition-colors cursor-pointer"
+              >
+                Book a Court
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-5">
@@ -507,9 +515,19 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
                             Court currently reserved by {schedule.playerDisplayName}
                           </span>
                         </span>
-                        <span className="text-[11px] text-slate-500 shrink-0">
-                          Queue next time slot via Booked Here
-                        </span>
+                        {onBookCourt ? (
+                          <button
+                            type="button"
+                            onClick={onBookCourt}
+                            className="text-[11px] font-semibold text-[#BE185D] hover:underline shrink-0 cursor-pointer text-left"
+                          >
+                            Book next slot in Book Court
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 shrink-0">
+                            Queue next time slot via Book Court
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

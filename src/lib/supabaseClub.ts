@@ -24,8 +24,9 @@ export function notifySupabaseClubListeners(): void {
 export function subscribeSupabaseClubUpdates(userId: string, onRefresh: () => void): () => void {
   refreshListeners.add(onRefresh);
 
+  const uniqueSuffix = Math.random().toString(36).slice(2, 8);
   const channel = supabase
-    .channel(`openline-club-${userId}`)
+    .channel(`openline-club-${userId}-${uniqueSuffix}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => onRefresh())
     .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () =>
       onRefresh()
@@ -269,6 +270,7 @@ export interface SupabaseClubSnapshot {
   transactions: PaymentTransaction[];
   reservedSlots: CourtSlot[];
   sharedSchedules: CourtSchedule[];
+  syncErrors: string[];
 }
 
 export async function loadSupabaseClubData(
@@ -281,8 +283,10 @@ export async function loadSupabaseClubData(
     0,
     80
   );
+  const syncErrors: string[] = [];
 
-  // 1. Load or create user's profile
+  // 1. Load or create user's profile (do not block shared schedules if profile fails)
+  let profileRow: ProfileRow | null = null;
   const { data: existingProfile, error: profileErr } = await supabase
     .from('player_profiles')
     .select('*')
@@ -290,37 +294,38 @@ export async function loadSupabaseClubData(
     .maybeSingle();
 
   if (profileErr) {
-    throw new Error(profileErr.message);
-  }
+    syncErrors.push(`player_profiles: ${profileErr.message}`);
+  } else {
+    profileRow = existingProfile as ProfileRow | null;
+    if (!profileRow) {
+      const { data: insertedProfile, error: insertErr } = await supabase
+        .from('player_profiles')
+        .upsert(
+          {
+            user_id: userId,
+            display_name: defaultName,
+            email: email.slice(0, 160),
+            phone: '',
+            photo_url: (fallbackPhotoUrl ?? '').slice(0, 500),
+            skill_level: '3.5',
+            dominant_hand: 'Right',
+            preferred_court_id: 'court-1',
+            bio: ''
+          },
+          { onConflict: 'user_id' }
+        )
+        .select()
+        .single();
 
-  let profileRow = existingProfile as ProfileRow | null;
-  if (!profileRow) {
-    const { data: insertedProfile, error: insertErr } = await supabase
-      .from('player_profiles')
-      .upsert(
-        {
-          user_id: userId,
-          display_name: defaultName,
-          email: email.slice(0, 160),
-          phone: '',
-          photo_url: (fallbackPhotoUrl ?? '').slice(0, 500),
-          skill_level: '3.5',
-          dominant_hand: 'Right',
-          preferred_court_id: 'court-1',
-          bio: ''
-        },
-        { onConflict: 'user_id' }
-      )
-      .select()
-      .single();
-
-    if (insertErr) {
-      throw new Error(insertErr.message);
+      if (insertErr) {
+        syncErrors.push(`player_profiles upsert: ${insertErr.message}`);
+      } else {
+        profileRow = insertedProfile as ProfileRow;
+      }
     }
-    profileRow = insertedProfile as ProfileRow;
   }
 
-  // 2. Load user's bookings, transactions, and club slots/schedules
+  // 2. Load user's bookings, transactions, and club slots/schedules independently
   const [bookingsRes, txRes, slotsRes, schedulesRes] = await Promise.all([
     supabase
       .from('bookings')
@@ -341,10 +346,10 @@ export async function loadSupabaseClubData(
       .order('start_hour', { ascending: true })
   ]);
 
-  if (bookingsRes.error) throw new Error(bookingsRes.error.message);
-  if (txRes.error) throw new Error(txRes.error.message);
-  if (slotsRes.error) throw new Error(slotsRes.error.message);
-  if (schedulesRes.error) throw new Error(schedulesRes.error.message);
+  if (bookingsRes.error) syncErrors.push(`bookings: ${bookingsRes.error.message}`);
+  if (txRes.error) syncErrors.push(`transactions: ${txRes.error.message}`);
+  if (slotsRes.error) syncErrors.push(`court_slots: ${slotsRes.error.message}`);
+  if (schedulesRes.error) syncErrors.push(`court_schedules: ${schedulesRes.error.message}`);
 
   const now = Date.now();
   const allSlots = ((slotsRes.data ?? []) as SlotRow[]).map(mapSlot);
@@ -371,15 +376,36 @@ export async function loadSupabaseClubData(
       .eq('user_id', userId);
   }
 
-  const { profile, privateInfo } = mapProfile(profileRow);
+  const mappedProfile = profileRow
+    ? mapProfile(profileRow)
+    : {
+        profile: {
+          uid: userId,
+          displayName: defaultName,
+          photoUrl: (fallbackPhotoUrl ?? '').slice(0, 500),
+          skillLevel: '3.5' as SkillLevel,
+          dominantHand: 'Right' as DominantHand,
+          preferredCourtId: 'court-1' as CourtId,
+          bio: '',
+          createdAt: null,
+          updatedAt: null
+        },
+        privateInfo: {
+          uid: userId,
+          email,
+          phone: '',
+          updatedAt: null
+        }
+      };
 
   return {
-    profile,
-    privateInfo,
+    profile: mappedProfile.profile,
+    privateInfo: mappedProfile.privateInfo,
     bookings: ((bookingsRes.data ?? []) as BookingRow[]).map(mapBooking),
     transactions: ((txRes.data ?? []) as TransactionRow[]).map(mapTransaction),
     reservedSlots: activeSlots,
-    sharedSchedules: ((schedulesRes.data ?? []) as ScheduleRow[]).map(mapSchedule)
+    sharedSchedules: ((schedulesRes.data ?? []) as ScheduleRow[]).map(mapSchedule),
+    syncErrors
   };
 }
 
@@ -506,7 +532,7 @@ export async function supabaseConfirmQRPayment(
       schedule_id: schedule.scheduleId,
       user_id: schedule.ownerId,
       booking_id: schedule.bookingId,
-      player_display_name: schedule.playerDisplayName,
+      player_display_name: (schedule.playerDisplayName || 'Openline Player').slice(0, 80),
       court_id: schedule.courtId,
       court_name: schedule.courtName,
       date: schedule.date,
@@ -521,7 +547,7 @@ export async function supabaseConfirmQRPayment(
     { onConflict: 'schedule_id' }
   );
 
-  if (scheduleErr) throw new Error(scheduleErr.message);
+  if (scheduleErr) throw new Error(`court_schedules: ${scheduleErr.message}`);
 
   notifySupabaseClubListeners();
 }

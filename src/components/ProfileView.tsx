@@ -292,10 +292,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <section className="xl:col-span-7 surface-2026 rounded-3xl p-5 sm:p-8 order-2 xl:order-1">
         <div className="pb-5 border-b border-pink-100">
           <h2 className="font-display text-lg font-semibold text-slate-900">
-            Player Settings &amp; Court Preferences
+            Player Settings
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Update your player name, DUPR skill level, and preferred home court.
+            Update your name, skill level, and preferred court.
           </p>
         </div>
 

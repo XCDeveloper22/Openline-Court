@@ -62,7 +62,7 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [supabaseReady, setSupabaseReady] = useState(false);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>('profile');
+  const [activeTab, setActiveTab] = useState<TabId>('book');
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [privateInfo, setPrivateInfo] = useState<UserPrivateInfo | null>(null);
@@ -87,7 +87,6 @@ export default function App() {
   const [promotedNoticeBooking, setPromotedNoticeBooking] = useState<CourtBooking | null>(null);
   const [notificationPermission, setNotificationPermission] =
     useState<BrowserNotificationPermission>(() => getNotificationPermission());
-  const [alertPromptDismissed, setAlertPromptDismissed] = useState(false);
   const [inAppAlerts, setInAppAlerts] = useState<InAppAlert[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -137,7 +136,6 @@ export default function App() {
     const result = await requestNotificationPermission();
     setNotificationPermission(result);
     if (result === 'granted') {
-      setAlertPromptDismissed(true);
       sendBrowserNotification({
         title: 'Openline Court Alerts Enabled',
         body: 'You will be notified 5 minutes before court time and when your turn moves from Next to Current.',
@@ -148,9 +146,7 @@ export default function App() {
 
   // Clear any legacy cached Firebase Auth session so PC and mobile always stay synced on Supabase Auth
   useEffect(() => {
-    if (auth.currentUser) {
-      void signOut(auth).catch(() => {});
-    }
+    void signOut(auth).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -210,32 +206,36 @@ export default function App() {
     };
   }, []);
 
+  const supabaseUserId = supabaseUser?.id ?? null;
+  const supabaseUserEmail = supabaseUser?.email ?? '';
+  const supabaseUserMeta = supabaseUser?.user_metadata as Record<string, unknown> | undefined;
+
   useEffect(() => {
-    if (!supabaseUser) return;
+    if (!supabaseUserId) return;
     const id = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
     return () => window.clearInterval(id);
-  }, [supabaseUser]);
+  }, [supabaseUserId]);
 
   useEffect(() => {
-    if (!supabaseUser) return;
+    if (!supabaseUserId) return;
 
     let cancelled = false;
-    const meta = supabaseUser.user_metadata as Record<string, unknown> | undefined;
     const fallbackName =
-      typeof meta?.full_name === 'string'
-        ? meta.full_name
-        : typeof meta?.name === 'string'
-          ? meta.name
-          : supabaseUser.email?.split('@')[0] || 'Openline Player';
-    const fallbackAvatar = typeof meta?.avatar_url === 'string' ? meta.avatar_url : '';
+      typeof supabaseUserMeta?.full_name === 'string'
+        ? supabaseUserMeta.full_name
+        : typeof supabaseUserMeta?.name === 'string'
+          ? supabaseUserMeta.name
+          : supabaseUserEmail.split('@')[0] || 'Openline Player';
+    const fallbackAvatar =
+      typeof supabaseUserMeta?.avatar_url === 'string' ? supabaseUserMeta.avatar_url : '';
 
     const refreshFromSupabase = async () => {
       try {
         const snap = await loadSupabaseClubData(
-          supabaseUser.id,
-          supabaseUser.email ?? '',
+          supabaseUserId,
+          supabaseUserEmail,
           fallbackName,
           fallbackAvatar
         );
@@ -249,14 +249,23 @@ export default function App() {
         setBookingsLoading(false);
         setSlotsReady(true);
         setSharedSchedulesReady(true);
-        setInAppAlerts((prev) => prev.filter((a) => a.id !== 'supabase-load-error'));
+
+        if (snap.syncErrors.length > 0) {
+          setInAppAlerts((prev) => {
+            const id = 'supabase-load-error';
+            const body = `Supabase sync issue (${snap.syncErrors.join(' | ')}). Run the updated supabase_schema.sql in Supabase SQL Editor if any table or policy is missing.`;
+            const filtered = prev.filter((a) => a.id !== id);
+            return [{ id, title: 'Supabase Database Sync Notice', body }, ...filtered].slice(0, 3);
+          });
+        } else {
+          setInAppAlerts((prev) => prev.filter((a) => a.id !== 'supabase-load-error'));
+        }
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : 'Unable to load Supabase data.';
-        // Keep UI usable instead of leaving Profile stuck on blank skeleton cards
         setProfile((prev) =>
           prev ?? {
-            uid: supabaseUser.id,
+            uid: supabaseUserId,
             displayName: fallbackName.slice(0, 80),
             photoUrl: fallbackAvatar.slice(0, 500),
             skillLevel: '3.5',
@@ -269,8 +278,8 @@ export default function App() {
         );
         setPrivateInfo((prev) =>
           prev ?? {
-            uid: supabaseUser.id,
-            email: supabaseUser.email ?? '',
+            uid: supabaseUserId,
+            email: supabaseUserEmail,
             phone: '',
             updatedAt: null
           }
@@ -293,12 +302,12 @@ export default function App() {
       }
     };
 
-    notifiedKeysRef.current = readNotifiedKeys(supabaseUser.id);
+    notifiedKeysRef.current = readNotifiedKeys(supabaseUserId);
     setNotificationPermission(getNotificationPermission());
     setBookingsLoading(true);
     void refreshFromSupabase();
 
-    const unsub = subscribeSupabaseClubUpdates(supabaseUser.id, () => {
+    const unsub = subscribeSupabaseClubUpdates(supabaseUserId, () => {
       void refreshFromSupabase();
     });
 
@@ -321,15 +330,15 @@ export default function App() {
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [supabaseUser]);
+  }, [supabaseUserId, supabaseUserEmail, supabaseUserMeta]);
 
   // Backfill any paid active bookings into shared court_schedules so all users & devices see Current and Next Schedules
   useEffect(() => {
-    if (!supabaseUser || !sharedSchedulesReady || bookings.length === 0) return;
+    if (!supabaseUserId || !sharedSchedulesReady || bookings.length === 0) return;
 
     const displayName = (
       profile?.displayName ||
-      supabaseUser.email?.split('@')[0] ||
+      supabaseUserEmail.split('@')[0] ||
       'Openline Player'
     ).slice(0, 80);
 
@@ -337,7 +346,11 @@ export default function App() {
       if (booking.status !== 'current' && booking.status !== 'pending') return;
       if (booking.courtId !== 'court-1' && booking.courtId !== 'court-2') return;
       if (booking.paymentStatus && booking.paymentStatus !== 'paid') return;
-      if (sharedSchedules.some((s) => s.scheduleId === booking.bookingId)) return;
+
+      const existingSchedule = sharedSchedules.find((s) => s.scheduleId === booking.bookingId);
+      if (existingSchedule && existingSchedule.status === booking.status && existingSchedule.isActive) {
+        return;
+      }
       if (backfilledIdsRef.current.has(booking.bookingId)) return;
 
       backfilledIdsRef.current.add(booking.bookingId);
@@ -345,11 +358,11 @@ export default function App() {
         backfilledIdsRef.current.delete(booking.bookingId);
       });
     });
-  }, [supabaseUser, profile, sharedSchedulesReady, bookings, sharedSchedules]);
+  }, [supabaseUserId, supabaseUserEmail, profile, sharedSchedulesReady, bookings, sharedSchedules]);
 
   // Global auto-promotion: when a paid 'pending' booking has 0 schedules ahead of it, promote to 'current'
   useEffect(() => {
-    if (!supabaseUser || !slotsReady || bookings.length === 0) return;
+    if (!supabaseUserId || !slotsReady || !sharedSchedulesReady || bookings.length === 0) return;
 
     bookings.forEach((booking) => {
       if (booking.status !== 'pending' || (booking.paymentStatus && booking.paymentStatus !== 'paid')) {
@@ -363,7 +376,8 @@ export default function App() {
         booking.date,
         booking.startHour,
         booking.bookingId,
-        nowMs
+        nowMs,
+        sharedSchedules
       );
 
       if (queue.aheadCount === 0) {
@@ -371,7 +385,7 @@ export default function App() {
         const promotedBooking: CourtBooking = { ...booking, status: 'current' };
         const courtLabel = getCourtById(booking.courtId).name;
 
-        void supabasePromoteBooking(booking.bookingId, supabaseUser.id)
+        void supabasePromoteBooking(booking.bookingId, supabaseUserId)
           .then(() => {
             setPromotedNoticeBooking(promotedBooking);
             pushCourtAlert(
@@ -389,7 +403,16 @@ export default function App() {
           });
       }
     });
-  }, [supabaseUser, slotsReady, bookings, reservedSlots, nowMs, pushCourtAlert]);
+  }, [
+    supabaseUserId,
+    slotsReady,
+    sharedSchedulesReady,
+    bookings,
+    reservedSlots,
+    sharedSchedules,
+    nowMs,
+    pushCourtAlert
+  ]);
 
   // Auto-finish: once a current schedule reaches its scheduled PHT end time, automatically complete it
   useEffect(() => {
@@ -533,7 +556,7 @@ export default function App() {
 
   const handleSignOut = async () => {
     await Promise.allSettled([signOut(auth), supabase.auth.signOut()]);
-    setActiveTab('profile');
+    setActiveTab('book');
   };
 
   const playerName =
@@ -557,45 +580,7 @@ export default function App() {
       />
 
       <div className="flex-1 min-w-0 flex flex-col lg:order-1">
-        <main className="flex-1 container-4k px-4 sm:px-6 lg:px-10 2xl:px-14 pt-5 sm:pt-7 pb-[calc(2.5rem+env(safe-area-inset-bottom))] lg:py-10 2xl:py-12 space-y-6 sm:space-y-8">
-          {/* Browser Push Alert Opt-In Banner (when permission is default and not dismissed) */}
-          {notificationPermission === 'default' && !alertPromptDismissed && (
-            <div
-              role="region"
-              aria-label="Enable Browser Alerts"
-              className="surface-2026 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-            >
-              <div className="flex items-start gap-3 min-w-0">
-                <Bell className="w-5 h-5 text-[#BE185D] shrink-0 mt-0.5" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="font-display text-sm font-semibold text-[#831843]">
-                    Turn on Browser Court Push Alerts
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-600">
-                    Receive a push notification 5 minutes before your court time and immediately when
-                    your Next Schedule moves to Current Schedule.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleEnableNotifications}
-                  className="min-h-[40px] px-4 py-2 bg-[#BE185D] text-white text-xs font-semibold rounded-xl hover:bg-[#9D174D] whitespace-nowrap cursor-pointer"
-                >
-                  Enable Alerts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAlertPromptDismissed(true)}
-                  className="min-h-[40px] px-3 py-2 text-xs font-medium text-slate-600 hover:text-[#831843] cursor-pointer"
-                >
-                  Later
-                </button>
-              </div>
-            </div>
-          )}
-
+        <main className="flex-1 container-4k px-4 sm:px-6 lg:px-10 2xl:px-14 pt-5 sm:pt-7 pb-[calc(2.5rem+env(safe-area-inset-bottom))] lg:py-8 2xl:py-10 space-y-6">
           {/* In-App Court Push Alerts Stack (5-min warnings & Pending -> Current alerts) */}
           {inAppAlerts.length > 0 && (
             <div className="space-y-2.5" aria-live="polite" aria-label="Court Alerts">
@@ -708,6 +693,7 @@ export default function App() {
               onShowReceipt={(booking, tx) =>
                 setReceiptModalData({ booking, transaction: tx ?? null })
               }
+              onNavigateTab={setActiveTab}
             />
           )}
 
@@ -719,6 +705,7 @@ export default function App() {
               reservedSlots={reservedSlots}
               loading={bookingsLoading && !sharedSchedulesReady}
               onShowReceipt={(booking) => setReceiptModalData({ booking })}
+              onBookCourt={() => setActiveTab('book')}
             />
           )}
 
@@ -730,6 +717,7 @@ export default function App() {
               reservedSlots={reservedSlots}
               loading={bookingsLoading && !sharedSchedulesReady}
               onShowReceipt={(booking) => setReceiptModalData({ booking })}
+              onBookCourt={() => setActiveTab('book')}
             />
           )}
 
@@ -738,6 +726,7 @@ export default function App() {
               bookings={bookings}
               transactions={transactions}
               reservedSlots={reservedSlots}
+              sharedSchedules={sharedSchedules}
               loading={bookingsLoading}
               onStartPayment={(booking, queueInfo) =>
                 setPaymentModalData({ booking, queueInfo })
@@ -745,6 +734,7 @@ export default function App() {
               onShowTransactionReceipt={(tx, matchingBooking) =>
                 setReceiptModalData({ transaction: tx, booking: matchingBooking })
               }
+              onBookCourt={() => setActiveTab('book')}
             />
           )}
 

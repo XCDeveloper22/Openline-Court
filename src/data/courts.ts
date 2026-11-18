@@ -199,7 +199,8 @@ export function computeCourtQueueInfo(
   date: string,
   targetStartHour: number,
   excludeBookingId?: string,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  schedules: CourtSchedule[] = []
 ): QueueAnalysis {
   const seenBookings = new Map<string, { startHour: number; durationHours: number }>();
 
@@ -219,6 +220,26 @@ export function computeCourtQueueInfo(
         seenBookings.set(slot.bookingId, {
           startHour: sStart,
           durationHours: sDur
+        });
+      }
+    }
+  });
+
+  schedules.forEach((sch) => {
+    if (
+      sch.isActive &&
+      sch.status !== 'completed' &&
+      sch.courtId === courtId &&
+      sch.date === date &&
+      sch.bookingId !== excludeBookingId
+    ) {
+      if (getPhilippineSlotTimestampMs(sch.date, sch.startHour + sch.durationHours) <= nowMs) {
+        return;
+      }
+      if (!seenBookings.has(sch.bookingId)) {
+        seenBookings.set(sch.bookingId, {
+          startHour: sch.startHour,
+          durationHours: sch.durationHours
         });
       }
     }
@@ -250,7 +271,7 @@ export function partitionActiveSchedules(
   const combined = new Map<string, CourtSchedule>();
 
   sharedSchedules.forEach((sch) => {
-    if (!sch.isActive || !activeCourtIds.has(sch.courtId)) return;
+    if (!sch.isActive || sch.status === 'completed' || !activeCourtIds.has(sch.courtId)) return;
     combined.set(sch.bookingId, sch);
   });
 
@@ -280,10 +301,11 @@ export function partitionActiveSchedules(
     }
   });
 
+  const combinedList = Array.from(combined.values());
   const currentSchedules: CourtSchedule[] = [];
   const pendingSchedules: CourtSchedule[] = [];
 
-  combined.forEach((sch) => {
+  combinedList.forEach((sch) => {
     const endMs = getPhilippineSlotTimestampMs(sch.date, sch.startHour + sch.durationHours);
     if (endMs <= nowMs) {
       return;
@@ -294,7 +316,8 @@ export function partitionActiveSchedules(
       sch.date,
       sch.startHour,
       sch.bookingId,
-      nowMs
+      nowMs,
+      combinedList
     );
     if (sch.status === 'current' || (sch.status === 'pending' && queue.aheadCount === 0)) {
       currentSchedules.push({ ...sch, status: 'current' });

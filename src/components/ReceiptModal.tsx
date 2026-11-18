@@ -98,17 +98,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <div>
                 <p className="font-display text-sm font-bold tracking-tight">
                   {isYourTurnNow
-                    ? 'IT IS YOUR SCHEDULE NOW — SHOW TO COURT WATCHER / MANAGER'
+                    ? 'YOUR SCHEDULE IS ACTIVE NOW — SHOW TO WATCHER'
                     : isCompleted
-                      ? 'COMPLETED COURT SESSION RECEIPT'
-                      : 'PAID & IN QUEUE — WAITING FOR CURRENT SCHEDULE TO FINISH'}
+                      ? 'COMPLETED COURT RECEIPT'
+                      : 'PAID & IN QUEUE — WAITING FOR CURRENT TURN'}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed opacity-90">
                   {isYourTurnNow
-                    ? 'Your GCash payment is verified and this court is active for your turn. Present this pass to the court watcher or manager on duty.'
+                    ? 'Your GCash payment is verified. Show this pass to the court watcher on duty.'
                     : isCompleted
-                      ? 'This scheduled session has been completed and logged in your Transact Log.'
-                      : 'Your GCash payment is verified. Wait for the current match ahead of you to finish; once cleared, this pass becomes active for your turn.'}
+                      ? 'This session is completed and saved in Receipts & Pay.'
+                      : 'Your GCash payment is verified. Your turn moves to Current Schedule as soon as the match ahead finishes.'}
                 </p>
               </div>
             </div>

@@ -25,6 +25,7 @@ interface PendingScheduleViewProps {
   reservedSlots: CourtSlot[];
   loading: boolean;
   onShowReceipt: (booking: CourtBooking) => void;
+  onBookCourt?: () => void;
 }
 
 export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
@@ -33,7 +34,8 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
   sharedSchedules,
   reservedSlots,
   loading,
-  onShowReceipt
+  onShowReceipt,
+  onBookCourt
 }) => {
   const upcomingDates = useMemo(() => getUpcomingDates(14), []);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -175,13 +177,11 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
   return (
     <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.15rem)] font-semibold tracking-tight text-slate-900">
-          Next Schedule · Club Queue Line
+        <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
+          Next Schedule
         </h1>
-        <p className="mt-1.5 text-sm text-slate-600 max-w-2xl">
-          Live queue of upcoming paid schedules across both courts and all devices in Philippine
-          Time. Confirmed schedules have no cancellations or refunds; once the turn ahead finishes,
-          the next schedule activates automatically.
+        <p className="mt-1 text-sm text-slate-600">
+          Upcoming paid reservations in line. Turns activate automatically when the match ahead finishes.
         </p>
       </div>
 
@@ -226,15 +226,25 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
       </div>
 
       {visiblePendingSchedules.length === 0 ? (
-        <div className="surface-2026 rounded-3xl p-8 sm:p-10 text-center">
+        <div className="surface-2026 rounded-3xl p-8 sm:p-10 text-center space-y-3">
           <Hourglass className="w-8 h-8 text-pink-400 mx-auto" aria-hidden="true" />
-          <h2 className="mt-3 font-display text-lg font-semibold text-slate-900">
+          <h2 className="font-display text-lg font-semibold text-slate-900">
             No bookings waiting in Next Schedule
           </h2>
-          <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
-            When players reserve a slot via <strong className="text-[#831843]">Booked Here</strong>{' '}
-            after an earlier active turn on the same court, the live queue order appears here.
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            Later bookings queued behind an active match on the same court appear here.
           </p>
+          {onBookCourt && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={onBookCourt}
+                className="min-h-[44px] px-5 py-2.5 bg-[#BE185D] text-white text-sm font-semibold rounded-xl hover:bg-[#9D174D] transition-colors cursor-pointer"
+              >
+                Book a Court
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-5">
@@ -250,7 +260,8 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
               schedule.date,
               schedule.startHour,
               schedule.bookingId,
-              nowMs
+              nowMs,
+              sharedSchedules
             );
 
             return (
