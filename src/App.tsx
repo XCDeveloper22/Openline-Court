@@ -1,18 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
-import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  setDoc,
-  where,
-  writeBatch
-} from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 import { Bell, Sparkles, X } from 'lucide-react';
 import { BookCourtView } from './components/BookCourtView';
 import { CurrentScheduleView } from './components/CurrentScheduleView';
@@ -35,7 +23,7 @@ import {
   partitionActiveSchedules,
   QueueAnalysis
 } from './data/courts';
-import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { auth } from './lib/firebase';
 import {
   loadSupabaseClubData,
   supabaseBackfillSchedule,
@@ -72,9 +60,7 @@ interface InAppAlert {
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
   const [supabaseReady, setSupabaseReady] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
@@ -108,7 +94,6 @@ export default function App() {
   const promotedIdsRef = useRef<Set<string>>(new Set());
   const autoFinishedIdsRef = useRef<Set<string>>(new Set());
   const backfilledIdsRef = useRef<Set<string>>(new Set());
-  const expiredSlotCleanedRef = useRef<Set<string>>(new Set());
   const prevBookingStatusRef = useRef<Map<string, BookingStatus>>(new Map());
   const notifiedKeysRef = useRef<Set<string>>(new Set());
 
@@ -123,9 +108,8 @@ export default function App() {
       if (persistDedupe) {
         if (notifiedKeysRef.current.has(dedupeKey)) return;
         notifiedKeysRef.current.add(dedupeKey);
-        const uid = user?.uid ?? supabaseUser?.id;
-        if (uid) {
-          saveNotifiedKey(uid, dedupeKey);
+        if (supabaseUser?.id) {
+          saveNotifiedKey(supabaseUser.id, dedupeKey);
         }
       }
 
@@ -146,7 +130,7 @@ export default function App() {
         return [{ id: dedupeKey, title, body, booking }, ...prev].slice(0, 3);
       });
     },
-    [user, supabaseUser]
+    [supabaseUser]
   );
 
   const handleEnableNotifications = useCallback(async () => {
@@ -162,43 +146,47 @@ export default function App() {
     }
   }, []);
 
+  // Clear any legacy cached Firebase Auth session so PC and mobile always stay synced on Supabase Auth
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthReady(true);
-      if (!firebaseUser) {
-        setProfile(null);
-        setPrivateInfo(null);
-        setBookings([]);
-        setTransactions([]);
-        setReservedSlots([]);
-        setSharedSchedules([]);
-        setSharedSchedulesReady(false);
-        setSlotsReady(false);
-        setBookingsLoading(false);
-        setInAppAlerts([]);
-        promotedIdsRef.current.clear();
-        autoFinishedIdsRef.current.clear();
-        backfilledIdsRef.current.clear();
-        expiredSlotCleanedRef.current.clear();
-        prevBookingStatusRef.current.clear();
-        notifiedKeysRef.current.clear();
-      } else {
-        notifiedKeysRef.current = readNotifiedKeys(firebaseUser.uid);
-        setNotificationPermission(getNotificationPermission());
-      }
-    });
-    return () => unsubscribe();
+    if (auth.currentUser) {
+      void signOut(auth).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
     let mounted = true;
+    const readySafetyTimer = window.setTimeout(() => {
+      if (mounted) setSupabaseReady(true);
+    }, 4000);
+
+    const clearUserData = () => {
+      setProfile(null);
+      setPrivateInfo(null);
+      setBookings([]);
+      setTransactions([]);
+      setReservedSlots([]);
+      setSharedSchedules([]);
+      setSharedSchedulesReady(false);
+      setSlotsReady(false);
+      setBookingsLoading(false);
+      setInAppAlerts([]);
+      promotedIdsRef.current.clear();
+      autoFinishedIdsRef.current.clear();
+      backfilledIdsRef.current.clear();
+      prevBookingStatusRef.current.clear();
+      notifiedKeysRef.current.clear();
+    };
+
     void supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!mounted) return;
-        setSupabaseUser(data.session?.user ?? null);
+        const sessionUser = data.session?.user ?? null;
+        setSupabaseUser(sessionUser);
         setSupabaseReady(true);
+        if (!sessionUser) {
+          clearUserData();
+        }
       })
       .catch(() => {
         if (!mounted) return;
@@ -206,41 +194,45 @@ export default function App() {
       });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSupabaseUser(session?.user ?? null);
+      if (!mounted) return;
+      const sessionUser = session?.user ?? null;
+      setSupabaseUser(sessionUser);
       setSupabaseReady(true);
+      if (!sessionUser) {
+        clearUserData();
+      }
     });
 
     return () => {
       mounted = false;
+      window.clearTimeout(readySafetyTimer);
       subscription.subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (!user && !supabaseUser) return;
+    if (!supabaseUser) return;
     const id = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
     return () => window.clearInterval(id);
-  }, [user, supabaseUser]);
+  }, [supabaseUser]);
 
   useEffect(() => {
-    if (user || !supabaseUser) return;
+    if (!supabaseUser) return;
 
     let cancelled = false;
+    const meta = supabaseUser.user_metadata as Record<string, unknown> | undefined;
+    const fallbackName =
+      typeof meta?.full_name === 'string'
+        ? meta.full_name
+        : typeof meta?.name === 'string'
+          ? meta.name
+          : supabaseUser.email?.split('@')[0] || 'Openline Player';
+    const fallbackAvatar = typeof meta?.avatar_url === 'string' ? meta.avatar_url : '';
 
     const refreshFromSupabase = async () => {
       try {
-        const meta = supabaseUser.user_metadata as Record<string, unknown> | undefined;
-        const fallbackName =
-          typeof meta?.full_name === 'string'
-            ? meta.full_name
-            : typeof meta?.name === 'string'
-              ? meta.name
-              : undefined;
-        const fallbackAvatar =
-          typeof meta?.avatar_url === 'string' ? meta.avatar_url : undefined;
-
         const snap = await loadSupabaseClubData(
           supabaseUser.id,
           supabaseUser.email ?? '',
@@ -257,9 +249,32 @@ export default function App() {
         setBookingsLoading(false);
         setSlotsReady(true);
         setSharedSchedulesReady(true);
+        setInAppAlerts((prev) => prev.filter((a) => a.id !== 'supabase-load-error'));
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : 'Unable to load Supabase data.';
+        // Keep UI usable instead of leaving Profile stuck on blank skeleton cards
+        setProfile((prev) =>
+          prev ?? {
+            uid: supabaseUser.id,
+            displayName: fallbackName.slice(0, 80),
+            photoUrl: fallbackAvatar.slice(0, 500),
+            skillLevel: '3.5',
+            dominantHand: 'Right',
+            preferredCourtId: 'court-1',
+            bio: '',
+            createdAt: null,
+            updatedAt: null
+          }
+        );
+        setPrivateInfo((prev) =>
+          prev ?? {
+            uid: supabaseUser.id,
+            email: supabaseUser.email ?? '',
+            phone: '',
+            updatedAt: null
+          }
+        );
         setBookingsLoading(false);
         setSlotsReady(true);
         setSharedSchedulesReady(true);
@@ -287,7 +302,6 @@ export default function App() {
       void refreshFromSupabase();
     });
 
-    // Fallback polling & focus refresh so other users always see Current/Next Schedule updates even if Realtime is disabled
     const pollId = window.setInterval(() => {
       void refreshFromSupabase();
     }, 10000);
@@ -307,150 +321,15 @@ export default function App() {
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [user, supabaseUser]);
+  }, [supabaseUser]);
 
+  // Backfill any paid active bookings into shared court_schedules so all users & devices see Current and Next Schedules
   useEffect(() => {
-    if (!authReady || !user) return;
-
-    let cancelled = false;
-
-    const ensureProfileProvisioned = async () => {
-      const userRef = doc(db, 'users', user.uid);
-      const privateRef = doc(db, 'users', user.uid, 'private', 'info');
-
-      try {
-        const existingSnap = await getDoc(userRef);
-        if (!existingSnap.exists() && !cancelled) {
-          const fallbackName =
-            user.displayName?.trim() || user.email?.split('@')[0] || 'Openline Player';
-
-          const batch = writeBatch(db);
-          batch.set(userRef, {
-            uid: user.uid,
-            displayName: fallbackName.slice(0, 80),
-            photoUrl: (user.photoURL ?? '').slice(0, 500),
-            skillLevel: '3.5',
-            dominantHand: 'Right',
-            preferredCourtId: 'court-1',
-            bio: '',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-          batch.set(privateRef, {
-            uid: user.uid,
-            email: (user.email ?? '').slice(0, 160),
-            phone: '',
-            updatedAt: serverTimestamp()
-          });
-          await batch.commit();
-        }
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
-      }
-    };
-
-    void ensureProfileProvisioned();
-
-    const unsubProfile = onSnapshot(
-      doc(db, 'users', user.uid),
-      (snap) => {
-        if (snap.exists()) {
-          setProfile(snap.data() as UserProfile);
-        }
-      },
-      (error) => handleFirestoreError(error, OperationType.GET, `users/${user.uid}`)
-    );
-
-    const unsubPrivate = onSnapshot(
-      doc(db, 'users', user.uid, 'private', 'info'),
-      (snap) => {
-        if (snap.exists()) {
-          setPrivateInfo(snap.data() as UserPrivateInfo);
-        }
-      },
-      (error) =>
-        handleFirestoreError(error, OperationType.GET, `users/${user.uid}/private/info`)
-    );
-
-    setBookingsLoading(true);
-    const bookingsQuery = query(collection(db, 'bookings'), where('ownerId', '==', user.uid));
-    const unsubBookings = onSnapshot(
-      bookingsQuery,
-      (snapshot) => {
-        const items: CourtBooking[] = [];
-        snapshot.forEach((docSnap) => {
-          items.push(docSnap.data() as CourtBooking);
-        });
-        setBookings(items);
-        setBookingsLoading(false);
-      },
-      (error) => {
-        setBookingsLoading(false);
-        handleFirestoreError(error, OperationType.LIST, 'bookings');
-      }
-    );
-
-    const txQuery = query(collection(db, 'transactions'), where('ownerId', '==', user.uid));
-    const unsubTransactions = onSnapshot(
-      txQuery,
-      (snapshot) => {
-        const items: PaymentTransaction[] = [];
-        snapshot.forEach((docSnap) => {
-          items.push(docSnap.data() as PaymentTransaction);
-        });
-        setTransactions(items);
-      },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'transactions')
-    );
-
-    const slotsQuery = query(collection(db, 'courtSlots'), where('status', '==', 'reserved'));
-    const unsubSlots = onSnapshot(
-      slotsQuery,
-      (snapshot) => {
-        const list: CourtSlot[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as CourtSlot);
-        });
-        setReservedSlots(list);
-        setSlotsReady(true);
-      },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'courtSlots')
-    );
-
-    const schedulesQuery = query(collection(db, 'courtSchedules'), where('isActive', '==', true));
-    const unsubSchedules = onSnapshot(
-      schedulesQuery,
-      (snapshot) => {
-        const list: CourtSchedule[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as CourtSchedule);
-        });
-        setSharedSchedules(list);
-        setSharedSchedulesReady(true);
-      },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'courtSchedules')
-    );
-
-    return () => {
-      cancelled = true;
-      unsubProfile();
-      unsubPrivate();
-      unsubBookings();
-      unsubTransactions();
-      unsubSlots();
-      unsubSchedules();
-    };
-  }, [authReady, user]);
-
-  // Backfill any existing paid active bookings into shared courtSchedules so all users & devices see Current and Next Schedules
-  useEffect(() => {
-    if ((!user && !supabaseUser) || !sharedSchedulesReady || bookings.length === 0) return;
+    if (!supabaseUser || !sharedSchedulesReady || bookings.length === 0) return;
 
     const displayName = (
       profile?.displayName ||
-      user?.displayName ||
-      user?.email?.split('@')[0] ||
-      supabaseUser?.email?.split('@')[0] ||
+      supabaseUser.email?.split('@')[0] ||
       'Openline Player'
     ).slice(0, 80);
 
@@ -462,60 +341,15 @@ export default function App() {
       if (backfilledIdsRef.current.has(booking.bookingId)) return;
 
       backfilledIdsRef.current.add(booking.bookingId);
-
-      if (!user && supabaseUser) {
-        void supabaseBackfillSchedule(booking, displayName).catch(() => {
-          backfilledIdsRef.current.delete(booking.bookingId);
-        });
-        return;
-      }
-
-      void setDoc(doc(db, 'courtSchedules', booking.bookingId), {
-        scheduleId: booking.bookingId,
-        bookingId: booking.bookingId,
-        ownerId: booking.ownerId,
-        playerDisplayName: displayName,
-        courtId: booking.courtId,
-        courtName: booking.courtName.slice(0, 80),
-        date: booking.date,
-        startHour: booking.startHour,
-        durationHours: booking.durationHours,
-        matchFormat: booking.matchFormat,
-        status: booking.status,
-        isActive: true,
-        checkedIn: booking.checkedIn,
-        scoreSummary: (booking.scoreSummary ?? '').slice(0, 64),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }).catch((error) => {
+      void supabaseBackfillSchedule(booking, displayName).catch(() => {
         backfilledIdsRef.current.delete(booking.bookingId);
-        handleFirestoreError(error, OperationType.CREATE, `courtSchedules/${booking.bookingId}`);
       });
     });
-  }, [user, supabaseUser, profile, sharedSchedulesReady, bookings, sharedSchedules]);
-
-  // Clean up any expired owned courtSlots in Firestore so past hours never block bookings
-  useEffect(() => {
-    if (!user || !slotsReady || reservedSlots.length === 0) return;
-
-    reservedSlots.forEach((slot) => {
-      if (slot.ownerId !== user.uid) return;
-      const endMs = getPhilippineSlotTimestampMs(
-        slot.date,
-        (slot.startHour ?? slot.hour) + (slot.durationHours ?? 1)
-      );
-      if (endMs <= nowMs && !expiredSlotCleanedRef.current.has(slot.slotKey)) {
-        expiredSlotCleanedRef.current.add(slot.slotKey);
-        void deleteDoc(doc(db, 'courtSlots', slot.slotKey)).catch(() => {
-          expiredSlotCleanedRef.current.delete(slot.slotKey);
-        });
-      }
-    });
-  }, [user, slotsReady, reservedSlots, nowMs]);
+  }, [supabaseUser, profile, sharedSchedulesReady, bookings, sharedSchedules]);
 
   // Global auto-promotion: when a paid 'pending' booking has 0 schedules ahead of it, promote to 'current'
   useEffect(() => {
-    if ((!user && !supabaseUser) || !slotsReady || bookings.length === 0) return;
+    if (!supabaseUser || !slotsReady || bookings.length === 0) return;
 
     bookings.forEach((booking) => {
       if (booking.status !== 'pending' || (booking.paymentStatus && booking.paymentStatus !== 'paid')) {
@@ -536,53 +370,30 @@ export default function App() {
         promotedIdsRef.current.add(booking.bookingId);
         const promotedBooking: CourtBooking = { ...booking, status: 'current' };
         const courtLabel = getCourtById(booking.courtId).name;
-        const notifyPromoted = () => {
-          setPromotedNoticeBooking(promotedBooking);
-          pushCourtAlert(
-            `promoted_${booking.bookingId}`,
-            `It's Your Turn Now · ${courtLabel}`,
-            `Your schedule moved from Next to Current on ${courtLabel} (${formatHourRange(
-              booking.startHour,
-              booking.durationHours
-            )}). Show code ${booking.checkInCode} to the watcher.`,
-            promotedBooking
-          );
-        };
 
-        if (!user && supabaseUser) {
-          void supabasePromoteBooking(booking.bookingId, supabaseUser.id)
-            .then(notifyPromoted)
-            .catch(() => {
-              promotedIdsRef.current.delete(booking.bookingId);
-            });
-          return;
-        }
-
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'bookings', booking.bookingId), {
-          status: 'current',
-          updatedAt: serverTimestamp()
-        });
-        if (sharedSchedules.some((s) => s.scheduleId === booking.bookingId)) {
-          batch.update(doc(db, 'courtSchedules', booking.bookingId), {
-            status: 'current',
-            updatedAt: serverTimestamp()
-          });
-        }
-        void batch
-          .commit()
-          .then(notifyPromoted)
-          .catch((error) => {
+        void supabasePromoteBooking(booking.bookingId, supabaseUser.id)
+          .then(() => {
+            setPromotedNoticeBooking(promotedBooking);
+            pushCourtAlert(
+              `promoted_${booking.bookingId}`,
+              `It's Your Turn Now · ${courtLabel}`,
+              `Your schedule moved from Next to Current on ${courtLabel} (${formatHourRange(
+                booking.startHour,
+                booking.durationHours
+              )}). Show code ${booking.checkInCode} to the watcher.`,
+              promotedBooking
+            );
+          })
+          .catch(() => {
             promotedIdsRef.current.delete(booking.bookingId);
-            handleFirestoreError(error, OperationType.UPDATE, `bookings/${booking.bookingId}`);
           });
       }
     });
-  }, [user, supabaseUser, slotsReady, bookings, reservedSlots, sharedSchedules, nowMs, pushCourtAlert]);
+  }, [supabaseUser, slotsReady, bookings, reservedSlots, nowMs, pushCourtAlert]);
 
   // Auto-finish: once a current schedule reaches its scheduled PHT end time, automatically complete it
   useEffect(() => {
-    if ((!user && !supabaseUser) || !slotsReady || !sharedSchedulesReady || bookings.length === 0) {
+    if (!supabaseUser || !slotsReady || !sharedSchedulesReady || bookings.length === 0) {
       return;
     }
 
@@ -605,84 +416,36 @@ export default function App() {
         slotKeys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
       }
 
-      const notifyFinished = () => {
-        setPromotedNoticeBooking((prev) =>
-          prev?.bookingId === booking.bookingId ? null : prev
-        );
-        const courtLabel = getCourtById(booking.courtId).name;
-        const completedBooking: CourtBooking = {
-          ...booking,
-          status: 'completed',
-          checkedIn: true
-        };
-        pushCourtAlert(
-          `finished_${booking.bookingId}`,
-          `Schedule Finished · ${courtLabel}`,
-          `Your ${formatHourRange(
-            booking.startHour,
-            booking.durationHours
-          )} session on ${courtLabel} is complete and logged in Completed Matches.`,
-          completedBooking
-        );
-      };
-
-      if (!user && supabaseUser) {
-        void supabaseCompleteBooking(booking.bookingId, cleanScore, slotKeys, supabaseUser.id)
-          .then(notifyFinished)
-          .catch(() => {
-            autoFinishedIdsRef.current.delete(booking.bookingId);
-          });
-        return;
-      }
-
-      const batch = writeBatch(db);
-
-      batch.update(doc(db, 'bookings', booking.bookingId), {
-        status: 'completed',
-        checkedIn: true,
-        scoreSummary: cleanScore,
-        updatedAt: serverTimestamp()
-      });
-
-      if (sharedSchedules.some((s) => s.scheduleId === booking.bookingId)) {
-        batch.update(doc(db, 'courtSchedules', booking.bookingId), {
-          status: 'completed',
-          isActive: false,
-          checkedIn: true,
-          scoreSummary: cleanScore,
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      slotKeys.forEach((key) => {
-        if (reservedSlots.some((s) => s.slotKey === key && s.ownerId === booking.ownerId)) {
-          batch.delete(doc(db, 'courtSlots', key));
-        }
-      });
-
-      void batch
-        .commit()
-        .then(notifyFinished)
-        .catch((error) => {
+      void supabaseCompleteBooking(booking.bookingId, cleanScore, slotKeys, supabaseUser.id)
+        .then(() => {
+          setPromotedNoticeBooking((prev) =>
+            prev?.bookingId === booking.bookingId ? null : prev
+          );
+          const courtLabel = getCourtById(booking.courtId).name;
+          const completedBooking: CourtBooking = {
+            ...booking,
+            status: 'completed',
+            checkedIn: true
+          };
+          pushCourtAlert(
+            `finished_${booking.bookingId}`,
+            `Schedule Finished · ${courtLabel}`,
+            `Your ${formatHourRange(
+              booking.startHour,
+              booking.durationHours
+            )} session on ${courtLabel} is complete and logged in Completed Matches.`,
+            completedBooking
+          );
+        })
+        .catch(() => {
           autoFinishedIdsRef.current.delete(booking.bookingId);
-          handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
         });
     });
-  }, [
-    user,
-    supabaseUser,
-    slotsReady,
-    sharedSchedulesReady,
-    bookings,
-    sharedSchedules,
-    reservedSlots,
-    nowMs,
-    pushCourtAlert
-  ]);
+  }, [supabaseUser, slotsReady, sharedSchedulesReady, bookings, nowMs, pushCourtAlert]);
 
-  // Detect any status change from 'pending' -> 'current' (e.g. from another device or tab)
+  // Detect any status change from 'pending' -> 'current'
   useEffect(() => {
-    if ((!user && !supabaseUser) || bookings.length === 0) return;
+    if (!supabaseUser || bookings.length === 0) return;
 
     const prevMap = prevBookingStatusRef.current;
     bookings.forEach((booking) => {
@@ -703,11 +466,11 @@ export default function App() {
       }
       prevMap.set(booking.bookingId, booking.status);
     });
-  }, [user, supabaseUser, bookings, pushCourtAlert]);
+  }, [supabaseUser, bookings, pushCourtAlert]);
 
   // Alert user 5 minutes before their scheduled court start time
   useEffect(() => {
-    if ((!user && !supabaseUser) || bookings.length === 0) return;
+    if (!supabaseUser || bookings.length === 0) return;
 
     const checkUpcomingReminders = () => {
       const now = Date.now();
@@ -737,21 +500,21 @@ export default function App() {
     checkUpcomingReminders();
     const timerId = window.setInterval(checkUpcomingReminders, 5000);
     return () => window.clearInterval(timerId);
-  }, [user, supabaseUser, bookings, pushCourtAlert]);
+  }, [supabaseUser, bookings, pushCourtAlert]);
 
   const handleSplashComplete = useCallback(() => {
     setSplashDone(true);
   }, []);
 
-  if (!splashDone || !authReady || !supabaseReady) {
+  if (!splashDone || !supabaseReady) {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
-  if (!user && !supabaseUser) {
+  if (!supabaseUser) {
     return <LoginScreen />;
   }
 
-  const activeUid = user?.uid ?? supabaseUser?.id ?? '';
+  const activeUid = supabaseUser.id;
 
   const { currentSchedules, pendingSchedules } = partitionActiveSchedules(
     sharedSchedules,
@@ -775,8 +538,7 @@ export default function App() {
 
   const playerName =
     profile?.displayName ||
-    user?.displayName ||
-    supabaseUser?.email?.split('@')[0] ||
+    supabaseUser.email?.split('@')[0] ||
     'Openline Player';
 
   return (
@@ -791,7 +553,7 @@ export default function App() {
         notificationPermission={notificationPermission}
         onEnableNotifications={handleEnableNotifications}
         playerName={playerName}
-        playerPhotoUrl={profile?.photoUrl || user?.photoURL || undefined}
+        playerPhotoUrl={profile?.photoUrl || undefined}
       />
 
       <div className="flex-1 min-w-0 flex flex-col lg:order-1">

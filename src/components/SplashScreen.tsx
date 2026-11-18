@@ -28,6 +28,15 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
     let doneTimer = 0;
     const startTime = performance.now();
 
+    let completed = false;
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      onComplete();
+    };
+
+    const safetyTimer = window.setTimeout(finish, durationMs + holdAtFullMs + 300);
+
     const tick = (now: number) => {
       const elapsed = now - startTime;
       const raw = Math.min(1, elapsed / durationMs);
@@ -41,7 +50,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         rafId = window.requestAnimationFrame(tick);
       } else {
         setProgress(100);
-        doneTimer = window.setTimeout(onComplete, holdAtFullMs);
+        doneTimer = window.setTimeout(finish, holdAtFullMs);
       }
     };
 
@@ -50,6 +59,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
     return () => {
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(doneTimer);
+      window.clearTimeout(safetyTimer);
     };
   }, [onComplete]);
 

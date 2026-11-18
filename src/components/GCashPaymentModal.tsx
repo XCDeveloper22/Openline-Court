@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Check, Copy, Smartphone, X } from 'lucide-react';
-import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   createTxId,
   formatCurrency,
@@ -11,7 +10,6 @@ import {
   getCourtById,
   QueueAnalysis
 } from '../data/courts';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { supabaseConfirmQRPayment } from '../lib/supabaseClub';
 import { CourtBooking, CourtSchedule, PaymentTransaction } from '../types';
 import { GCashQRCode } from './GCashQRCode';
@@ -74,7 +72,7 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       const txId = createTxId();
       const paidAtIso = new Date().toISOString();
 
-      const txPayload: Omit<PaymentTransaction, 'createdAt'> & { createdAt: unknown } = {
+      const txPayload: PaymentTransaction = {
         txId,
         ownerId: booking.ownerId,
         bookingId: booking.bookingId,
@@ -94,13 +92,10 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         paymentStatus: 'paid',
         scheduleStatusAtPay: targetStatus,
         checkInCode: booking.checkInCode,
-        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
+        createdAt: paidAtIso
       };
 
-      const schedulePayload: Omit<CourtSchedule, 'createdAt' | 'updatedAt'> & {
-        createdAt: unknown;
-        updatedAt: unknown;
-      } = {
+      const schedulePayload: CourtSchedule = {
         scheduleId: booking.bookingId,
         bookingId: booking.bookingId,
         ownerId: booking.ownerId,
@@ -115,45 +110,23 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         isActive: true,
         checkedIn: false,
         scoreSummary: '',
-        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString(),
-        updatedAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
+        createdAt: paidAtIso,
+        updatedAt: paidAtIso
       };
 
-      if (!auth.currentUser) {
-        await supabaseConfirmQRPayment(
-          booking.bookingId,
-          {
-            status: targetStatus,
-            paymentMethod: 'GCash',
-            gcashReferenceNo: cleanRef,
-            gcashSenderNumber: cleanSender,
-            receiptNumber,
-            paidAtIso
-          },
-          txPayload as PaymentTransaction,
-          schedulePayload as CourtSchedule
-        );
-      } else {
-        const batch = writeBatch(db);
-        const bookingRef = doc(db, 'bookings', booking.bookingId);
-        const txRef = doc(db, 'transactions', txId);
-        const scheduleRef = doc(db, 'courtSchedules', booking.bookingId);
-
-        batch.update(bookingRef, {
+      await supabaseConfirmQRPayment(
+        booking.bookingId,
+        {
           status: targetStatus,
-          paymentStatus: 'paid',
           paymentMethod: 'GCash',
           gcashReferenceNo: cleanRef,
           gcashSenderNumber: cleanSender,
           receiptNumber,
-          paidAtIso,
-          updatedAt: serverTimestamp()
-        });
-
-        batch.set(txRef, txPayload);
-        batch.set(scheduleRef, schedulePayload);
-        await batch.commit();
-      }
+          paidAtIso
+        },
+        txPayload,
+        schedulePayload
+      );
 
       const updatedBooking: CourtBooking = {
         ...booking,
@@ -166,15 +139,11 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         paidAtIso
       };
 
-      onPaymentSuccess(updatedBooking, txPayload as PaymentTransaction);
+      onPaymentSuccess(updatedBooking, txPayload);
     } catch (error) {
-      if (!auth.currentUser) {
-        setErrorMsg(
-          error instanceof Error ? error.message : 'Unable to confirm payment in Supabase.'
-        );
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
-      }
+      setErrorMsg(
+        error instanceof Error ? error.message : 'Unable to confirm payment in Supabase.'
+      );
     } finally {
       setSubmitting(false);
     }

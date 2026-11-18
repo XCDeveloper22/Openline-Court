@@ -12,7 +12,6 @@ import {
   Receipt,
   Smartphone
 } from 'lucide-react';
-import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   CLUB_INFO,
   computeCourtQueueInfo,
@@ -29,14 +28,12 @@ import {
   generateReceiptNumber,
   getCourtById,
   getPhilippineNowParts,
-  getPhilippineSlotTimestampMs,
   getUpcomingDates,
   makeSlotKey,
   MATCH_FORMAT_LABELS,
   PADDLE_RENTAL_FEE,
   QueueAnalysis
 } from '../data/courts';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   supabaseConfirmQRPayment,
   supabaseReserveBookingAndSlots
@@ -209,10 +206,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         selectedHour
       );
 
-      const newBookingPayload: Omit<CourtBooking, 'createdAt' | 'updatedAt'> & {
-        createdAt: unknown;
-        updatedAt: unknown;
-      } = {
+      const nowIso = new Date().toISOString();
+      const newBookingPayload: CourtBooking = {
         bookingId,
         ownerId: uid,
         courtId: selectedCourt.id,
@@ -235,8 +230,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         checkInCode,
         checkedIn: false,
         scoreSummary: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
 
       const firstSlotKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour);
@@ -270,53 +265,18 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         });
       }
 
-      if (!auth.currentUser) {
-        const res = await supabaseReserveBookingAndSlots(
-          {
-            ...newBookingPayload,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          } as CourtBooking,
-          localSlots
+      const res = await supabaseReserveBookingAndSlots(newBookingPayload, localSlots);
+      if (!res.ok) {
+        setSubmitError(
+          'That slot was just reserved by another player. Please choose another available time.'
         );
-        if (!res.ok) {
-          setSubmitError(
-            'That slot was just reserved by another player. Please choose another available time.'
-          );
-          return;
-        }
-      } else {
-        const batch = writeBatch(db);
-        const bookingRef = doc(db, 'bookings', bookingId);
-        batch.set(bookingRef, newBookingPayload);
-        batch.set(doc(db, 'courtSlots', firstSlotKey), {
-          ...firstSlotPayload,
-          createdAt: serverTimestamp()
-        });
-
-        if (durationHours === 2) {
-          const secondSlotKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour + 1);
-          batch.set(doc(db, 'courtSlots', secondSlotKey), {
-            slotKey: secondSlotKey,
-            courtId: selectedCourt.id,
-            date: selectedDate,
-            hour: selectedHour + 1,
-            startHour: selectedHour,
-            durationHours,
-            bookingId,
-            ownerId: uid,
-            status: 'reserved',
-            createdAt: serverTimestamp()
-          });
-        }
-
-        await batch.commit();
+        return;
       }
 
       setSelectedHour(null);
       setPartnerNames('');
       setPaddleRental(false);
-      setActivePaymentBooking(newBookingPayload as CourtBooking);
+      setActivePaymentBooking(newBookingPayload);
       setActiveQueueInfo(queueAtBook);
       setSenderNumber('');
       setReferenceNo('');
@@ -325,43 +285,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       scrollToTop();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (!auth.currentUser) {
-        setSubmitError(msg || 'Unable to save booking to Supabase.');
-      } else if (
-        msg.toLowerCase().includes('permission') ||
-        msg.toLowerCase().includes('insufficient')
-      ) {
-        try {
-          const firstKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour);
-          const slotSnap = await getDoc(doc(db, 'courtSlots', firstKey));
-          const slotData = slotSnap.exists() ? (slotSnap.data() as CourtSlot) : null;
-          if (slotData) {
-            const slotEndMs = getPhilippineSlotTimestampMs(
-              slotData.date,
-              (slotData.startHour ?? slotData.hour) + (slotData.durationHours ?? 1)
-            );
-            if (slotData.ownerId === uid && slotEndMs <= Date.now()) {
-              setSubmitError(
-                'An expired slot hold was detected. Refreshing availability — please tap Reserve again.'
-              );
-            } else {
-              setSubmitError(
-                'That slot was just reserved by another player. Please choose another available time.'
-              );
-            }
-          } else {
-            setSubmitError(
-              'Unable to save reservation to database. Please verify your login session and try again.'
-            );
-          }
-        } catch {
-          setSubmitError(
-            'That slot was just reserved by another player. Please choose another available time.'
-          );
-        }
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, 'bookings');
-      }
+      setSubmitError(msg || 'Unable to save booking to Supabase.');
     } finally {
       setSubmitting(false);
     }
@@ -411,7 +335,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       const txId = createTxId();
       const paidAtIso = new Date().toISOString();
 
-      const txPayload: Omit<PaymentTransaction, 'createdAt'> & { createdAt: unknown } = {
+      const txPayload: PaymentTransaction = {
         txId,
         ownerId: activePaymentBooking.ownerId,
         bookingId: activePaymentBooking.bookingId,
@@ -431,13 +355,10 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         paymentStatus: 'paid',
         scheduleStatusAtPay: targetStatus,
         checkInCode: activePaymentBooking.checkInCode,
-        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
+        createdAt: paidAtIso
       };
 
-      const schedulePayload: Omit<CourtSchedule, 'createdAt' | 'updatedAt'> & {
-        createdAt: unknown;
-        updatedAt: unknown;
-      } = {
+      const schedulePayload: CourtSchedule = {
         scheduleId: activePaymentBooking.bookingId,
         bookingId: activePaymentBooking.bookingId,
         ownerId: activePaymentBooking.ownerId,
@@ -452,45 +373,23 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         isActive: true,
         checkedIn: false,
         scoreSummary: '',
-        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString(),
-        updatedAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
+        createdAt: paidAtIso,
+        updatedAt: paidAtIso
       };
 
-      if (!auth.currentUser) {
-        await supabaseConfirmQRPayment(
-          activePaymentBooking.bookingId,
-          {
-            status: targetStatus,
-            paymentMethod: 'GCash',
-            gcashReferenceNo: cleanRef,
-            gcashSenderNumber: cleanSender,
-            receiptNumber,
-            paidAtIso
-          },
-          txPayload as PaymentTransaction,
-          schedulePayload as CourtSchedule
-        );
-      } else {
-        const batch = writeBatch(db);
-        const bookingRef = doc(db, 'bookings', activePaymentBooking.bookingId);
-        const txRef = doc(db, 'transactions', txId);
-        const scheduleRef = doc(db, 'courtSchedules', activePaymentBooking.bookingId);
-
-        batch.update(bookingRef, {
+      await supabaseConfirmQRPayment(
+        activePaymentBooking.bookingId,
+        {
           status: targetStatus,
-          paymentStatus: 'paid',
           paymentMethod: 'GCash',
           gcashReferenceNo: cleanRef,
           gcashSenderNumber: cleanSender,
           receiptNumber,
-          paidAtIso,
-          updatedAt: serverTimestamp()
-        });
-
-        batch.set(txRef, txPayload);
-        batch.set(scheduleRef, schedulePayload);
-        await batch.commit();
-      }
+          paidAtIso
+        },
+        txPayload,
+        schedulePayload
+      );
 
       const updatedBooking: CourtBooking = {
         ...activePaymentBooking,
@@ -504,18 +403,14 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       };
 
       setCompletedBooking(updatedBooking);
-      setCompletedTx(txPayload as PaymentTransaction);
+      setCompletedTx(txPayload);
       setActivePaymentBooking(null);
       setFlowStep('done');
       scrollToTop();
     } catch (error) {
-      if (!auth.currentUser) {
-        setPayError(
-          error instanceof Error ? error.message : 'Unable to confirm payment in Supabase.'
-        );
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, `bookings/${activePaymentBooking.bookingId}`);
-      }
+      setPayError(
+        error instanceof Error ? error.message : 'Unable to confirm payment in Supabase.'
+      );
     } finally {
       setPaying(false);
     }

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, CheckCircle2, Clock3, Receipt, Trophy, Users } from 'lucide-react';
-import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   COURTS,
   formatCurrency,
@@ -15,7 +14,6 @@ import {
   MATCH_FORMAT_LABELS,
   partitionActiveSchedules
 } from '../data/courts';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { supabaseCheckInBooking, supabaseCompleteBooking } from '../lib/supabaseClub';
 import { CourtBooking, CourtId, CourtSchedule, CourtSlot } from '../types';
 
@@ -87,49 +85,12 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
     setActionError(null);
     setBusyId(booking.bookingId);
     try {
-      if (!auth.currentUser) {
-        await supabaseCheckInBooking(booking.bookingId, uid);
-        return;
-      }
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'bookings', booking.bookingId), {
-        checkedIn: true,
-        updatedAt: serverTimestamp()
-      });
-
-      const hasShared = sharedSchedules.some((s) => s.scheduleId === booking.bookingId);
-      if (hasShared) {
-        batch.update(doc(db, 'courtSchedules', booking.bookingId), {
-          checkedIn: true,
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      await batch.commit();
+      await supabaseCheckInBooking(booking.bookingId, uid);
     } catch (error) {
-      if (!auth.currentUser) {
-        setActionError(error instanceof Error ? error.message : 'Unable to check in.');
-      } else {
-        handleFirestoreError(error, OperationType.UPDATE, `bookings/${booking.bookingId}`);
-      }
+      setActionError(error instanceof Error ? error.message : 'Unable to check in.');
     } finally {
       setBusyId(null);
     }
-  };
-
-  const appendOwnedSlotDeletes = (batch: ReturnType<typeof writeBatch>, booking: CourtBooking) => {
-    const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
-    if (booking.durationHours === 2) {
-      keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
-    }
-    keys.forEach((key) => {
-      const existsOwned = reservedSlots.some(
-        (s) => s.slotKey === key && s.ownerId === booking.ownerId
-      );
-      if (existsOwned) {
-        batch.delete(doc(db, 'courtSlots', key));
-      }
-    });
   };
 
   const handleCompleteMatch = async (booking: CourtBooking) => {
@@ -137,46 +98,15 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
     setBusyId(booking.bookingId);
     try {
       const cleanScore = scoreInput.trim().slice(0, 64);
-      if (!auth.currentUser) {
-        const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
-        if (booking.durationHours === 2) {
-          keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
-        }
-        await supabaseCompleteBooking(booking.bookingId, cleanScore, keys, uid);
-        setCompletingId(null);
-        setScoreInput('');
-        return;
+      const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
+      if (booking.durationHours === 2) {
+        keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
       }
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'bookings', booking.bookingId), {
-        status: 'completed',
-        checkedIn: true,
-        scoreSummary: cleanScore,
-        updatedAt: serverTimestamp()
-      });
-
-      const hasShared = sharedSchedules.some((s) => s.scheduleId === booking.bookingId);
-      if (hasShared) {
-        batch.update(doc(db, 'courtSchedules', booking.bookingId), {
-          status: 'completed',
-          isActive: false,
-          checkedIn: true,
-          scoreSummary: cleanScore,
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      appendOwnedSlotDeletes(batch, booking);
-
-      await batch.commit();
+      await supabaseCompleteBooking(booking.bookingId, cleanScore, keys, uid);
       setCompletingId(null);
       setScoreInput('');
     } catch (error) {
-      if (!auth.currentUser) {
-        setActionError(error instanceof Error ? error.message : 'Unable to complete schedule.');
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
-      }
+      setActionError(error instanceof Error ? error.message : 'Unable to complete schedule.');
     } finally {
       setBusyId(null);
     }

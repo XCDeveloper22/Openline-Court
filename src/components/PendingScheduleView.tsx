@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Edit3, Hourglass, Receipt, Sparkles, Users } from 'lucide-react';
-import { doc, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import {
   computeCourtQueueInfo,
   COURT_HOURS,
@@ -16,7 +15,6 @@ import {
   MATCH_FORMAT_LABELS,
   partitionActiveSchedules
 } from '../data/courts';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { supabaseRescheduleBooking, supabaseUpdateBookingPartners } from '../lib/supabaseClub';
 import { CourtBooking, CourtId, CourtSchedule, CourtSlot } from '../types';
 
@@ -83,18 +81,10 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
     setBusyId(booking.bookingId);
     try {
       const cleanPartners = partnersDraft.trim().slice(0, 120);
-      if (!auth.currentUser) {
-        await supabaseUpdateBookingPartners(booking.bookingId, cleanPartners, uid);
-        setEditingPartnersId(null);
-        return;
-      }
-      await updateDoc(doc(db, 'bookings', booking.bookingId), {
-        partnerNames: cleanPartners,
-        updatedAt: serverTimestamp()
-      });
+      await supabaseUpdateBookingPartners(booking.bookingId, cleanPartners, uid);
       setEditingPartnersId(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `bookings/${booking.bookingId}`);
+      setRescheduleError(error instanceof Error ? error.message : 'Unable to save partners.');
     } finally {
       setBusyId(null);
     }
@@ -139,87 +129,35 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
         newKeys.push(makeSlotKey(booking.courtId, newDate, newHour + 1));
       }
 
-      if (!auth.currentUser) {
-        const newSlots: CourtSlot[] = newKeys.map((key, idx) => ({
-          slotKey: key,
-          courtId: booking.courtId,
-          date: newDate,
-          hour: newHour + idx,
-          startHour: newHour,
-          durationHours: booking.durationHours,
-          bookingId: booking.bookingId,
-          ownerId: uid,
-          status: 'reserved',
-          createdAt: new Date().toISOString()
-        }));
-        const res = await supabaseRescheduleBooking(
-          booking.bookingId,
-          newDate,
-          newHour,
-          oldKeys,
-          newSlots,
-          uid
-        );
-        if (!res.ok) {
-          setRescheduleError('Selected slot was taken. Please pick another open hour.');
-          return;
-        }
-        setReschedulingBooking(null);
-        setNewHour(null);
+      const newSlots: CourtSlot[] = newKeys.map((key, idx) => ({
+        slotKey: key,
+        courtId: booking.courtId,
+        date: newDate,
+        hour: newHour + idx,
+        startHour: newHour,
+        durationHours: booking.durationHours,
+        bookingId: booking.bookingId,
+        ownerId: uid,
+        status: 'reserved',
+        createdAt: new Date().toISOString()
+      }));
+      const res = await supabaseRescheduleBooking(
+        booking.bookingId,
+        newDate,
+        newHour,
+        oldKeys,
+        newSlots,
+        uid
+      );
+      if (!res.ok) {
+        setRescheduleError('Selected slot was taken. Please pick another open hour.');
         return;
       }
-
-      const batch = writeBatch(db);
-      oldKeys.forEach((key) => {
-        if (!newKeys.includes(key)) {
-          batch.delete(doc(db, 'courtSlots', key));
-        }
-      });
-
-      newKeys.forEach((key, idx) => {
-        if (!oldKeys.includes(key)) {
-          batch.set(doc(db, 'courtSlots', key), {
-            slotKey: key,
-            courtId: booking.courtId,
-            date: newDate,
-            hour: newHour + idx,
-            startHour: newHour,
-            durationHours: booking.durationHours,
-            bookingId: booking.bookingId,
-            ownerId: uid,
-            status: 'reserved',
-            createdAt: serverTimestamp()
-          });
-        }
-      });
-
-      batch.update(doc(db, 'bookings', booking.bookingId), {
-        date: newDate,
-        startHour: newHour,
-        updatedAt: serverTimestamp()
-      });
-
-      const hasShared = sharedSchedules.some((s) => s.scheduleId === booking.bookingId);
-      if (hasShared) {
-        batch.update(doc(db, 'courtSchedules', booking.bookingId), {
-          date: newDate,
-          startHour: newHour,
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      await batch.commit();
       setReschedulingBooking(null);
       setNewHour(null);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (!auth.currentUser) {
-        setRescheduleError(msg || 'Unable to reschedule booking in Supabase.');
-      } else if (msg.toLowerCase().includes('permission')) {
-        setRescheduleError('Selected slot was taken. Please pick another open hour.');
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
-      }
+      setRescheduleError(msg || 'Unable to reschedule booking in Supabase.');
     } finally {
       setBusyId(null);
     }

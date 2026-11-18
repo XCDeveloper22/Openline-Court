@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { Check, Copy, ReceiptText, Search, Smartphone, Trash2 } from 'lucide-react';
-import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   computeCourtQueueInfo,
   formatCurrency,
@@ -11,7 +10,6 @@ import {
   makeSlotKey,
   QueueAnalysis
 } from '../data/courts';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { supabaseCancelUnpaidBooking } from '../lib/supabaseClub';
 import { CourtBooking, CourtSlot, PaymentTransaction } from '../types';
 
@@ -84,29 +82,11 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
       if (booking.durationHours === 2) {
         keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
       }
-      if (!auth.currentUser) {
-        await supabaseCancelUnpaidBooking(booking.bookingId, keys, booking.ownerId);
-        return;
-      }
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'bookings', booking.bookingId), {
-        status: 'cancelled',
-        updatedAt: serverTimestamp()
-      });
-      keys.forEach((key) => {
-        if (reservedSlots.some((s) => s.slotKey === key && s.ownerId === booking.ownerId)) {
-          batch.delete(doc(db, 'courtSlots', key));
-        }
-      });
-      await batch.commit();
+      await supabaseCancelUnpaidBooking(booking.bookingId, keys, booking.ownerId);
     } catch (error) {
-      if (!auth.currentUser) {
-        setCancelError(
-          error instanceof Error ? error.message : 'Unable to delete reservation in Supabase.'
-        );
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
-      }
+      setCancelError(
+        error instanceof Error ? error.message : 'Unable to delete reservation in Supabase.'
+      );
     } finally {
       setBusyCancelId(null);
     }

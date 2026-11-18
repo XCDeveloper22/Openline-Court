@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Bell, Check, Clock, ExternalLink, MapPin, Save } from 'lucide-react';
-import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { CLUB_INFO, COURTS } from '../data/courts';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { supabaseSaveUserProfile } from '../lib/supabaseClub';
 import { BrowserNotificationPermission } from '../lib/notifications';
 import {
@@ -108,52 +106,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
     setSaving(true);
     try {
-      if (!auth.currentUser) {
-        await supabaseSaveUserProfile(
-          profile.uid,
-          {
-            displayName: trimmedName,
-            skillLevel,
-            dominantHand,
-            preferredCourtId,
-            bio: trimmedBio
-          },
-          trimmedPhone
-        );
-        setSavedNotice(true);
-        window.setTimeout(() => setSavedNotice(false), 3000);
-        return;
-      }
-
-      const batch = writeBatch(db);
-      const userRef = doc(db, 'users', profile.uid);
-      const privateRef = doc(db, 'users', profile.uid, 'private', 'info');
-
-      batch.update(userRef, {
-        displayName: trimmedName,
-        photoUrl: (profile.photoUrl ?? '').slice(0, 500),
-        skillLevel,
-        dominantHand,
-        preferredCourtId,
-        bio: trimmedBio,
-        updatedAt: serverTimestamp()
-      });
-
-      batch.update(privateRef, {
-        email: (privateInfo?.email ?? '').slice(0, 160),
-        phone: trimmedPhone,
-        updatedAt: serverTimestamp()
-      });
-
-      await batch.commit();
+      await supabaseSaveUserProfile(
+        profile.uid,
+        {
+          displayName: trimmedName,
+          skillLevel,
+          dominantHand,
+          preferredCourtId,
+          bio: trimmedBio
+        },
+        trimmedPhone
+      );
       setSavedNotice(true);
       window.setTimeout(() => setSavedNotice(false), 3000);
     } catch (err) {
-      if (!auth.currentUser) {
-        setErrorMsg(err instanceof Error ? err.message : 'Unable to save profile to Supabase.');
-      } else {
-        handleFirestoreError(err, OperationType.UPDATE, `users/${profile.uid}`);
-      }
+      setErrorMsg(err instanceof Error ? err.message : 'Unable to save profile to Supabase.');
     } finally {
       setSaving(false);
     }
