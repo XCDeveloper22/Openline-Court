@@ -199,8 +199,8 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
           onClick={() => setCourtFilter('all')}
           className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors tabular-nums ${
             courtFilter === 'all'
-              ? 'bg-[#BE185D] text-white shadow-xs'
-              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              ? 'bg-[#BE185D] text-white'
+              : 'bg-white border border-pink-200/80 text-[#831843] hover:bg-pink-50'
           }`}
         >
           All Courts ({allPendingSchedules.length})
@@ -216,8 +216,8 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
               onClick={() => setCourtFilter(c.id)}
               className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap cursor-pointer transition-colors tabular-nums ${
                 courtFilter === c.id
-                  ? 'bg-[#BE185D] text-white font-semibold shadow-xs'
-                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  ? 'bg-[#BE185D] text-white font-semibold'
+                  : 'bg-white border border-pink-200/80 text-slate-700 hover:bg-pink-50'
               }`}
             >
               {c.name.split('·')[0].trim()} ({count})

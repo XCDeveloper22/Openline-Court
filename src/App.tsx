@@ -565,7 +565,7 @@ export default function App() {
     'Openline Player';
 
   return (
-    <div className="min-h-dvh bg-[#FAFBFD] bg-[radial-gradient(ellipse_at_top,_rgba(244,114,182,0.07),_transparent_52%)] flex flex-col">
+    <div className="min-h-dvh bg-[#FFF9FB] bg-[radial-gradient(ellipse_at_top_right,_rgba(244,114,182,0.08),_transparent_55%)] flex flex-col">
       <TopNav
         activeTab={activeTab}
         onSelectTab={setActiveTab}
