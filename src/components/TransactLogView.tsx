@@ -11,7 +11,8 @@ import {
   makeSlotKey,
   QueueAnalysis
 } from '../data/courts';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { localCancelUnpaidBooking } from '../lib/localClubStore';
 import { CourtBooking, CourtSlot, PaymentTransaction } from '../types';
 
 interface TransactLogViewProps {
@@ -77,15 +78,19 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
   const handleCancelUnpaid = async (booking: CourtBooking) => {
     setBusyCancelId(booking.bookingId);
     try {
+      const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
+      if (booking.durationHours === 2) {
+        keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
+      }
+      if (!auth.currentUser) {
+        localCancelUnpaidBooking(booking.bookingId, keys);
+        return;
+      }
       const batch = writeBatch(db);
       batch.update(doc(db, 'bookings', booking.bookingId), {
         status: 'cancelled',
         updatedAt: serverTimestamp()
       });
-      const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
-      if (booking.durationHours === 2) {
-        keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
-      }
       keys.forEach((key) => {
         if (reservedSlots.some((s) => s.slotKey === key && s.ownerId === booking.ownerId)) {
           batch.delete(doc(db, 'courtSlots', key));

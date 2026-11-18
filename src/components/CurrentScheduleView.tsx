@@ -15,7 +15,8 @@ import {
   MATCH_FORMAT_LABELS,
   partitionActiveSchedules
 } from '../data/courts';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { localCheckInBooking, localCompleteBooking } from '../lib/localClubStore';
 import { CourtBooking, CourtId, CourtSchedule, CourtSlot } from '../types';
 
 interface CurrentScheduleViewProps {
@@ -84,6 +85,10 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
   const handleCheckIn = async (booking: CourtBooking) => {
     setBusyId(booking.bookingId);
     try {
+      if (!auth.currentUser) {
+        localCheckInBooking(booking.bookingId);
+        return;
+      }
       const batch = writeBatch(db);
       batch.update(doc(db, 'bookings', booking.bookingId), {
         checkedIn: true,
@@ -125,6 +130,16 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
     setBusyId(booking.bookingId);
     try {
       const cleanScore = scoreInput.trim().slice(0, 64);
+      if (!auth.currentUser) {
+        const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
+        if (booking.durationHours === 2) {
+          keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
+        }
+        localCompleteBooking(booking.bookingId, cleanScore, keys);
+        setCompletingId(null);
+        setScoreInput('');
+        return;
+      }
       const batch = writeBatch(db);
       batch.update(doc(db, 'bookings', booking.bookingId), {
         status: 'completed',

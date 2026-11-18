@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Bell, Check, Clock, ExternalLink, MapPin, Save } from 'lucide-react';
 import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { CLUB_INFO, COURTS } from '../data/courts';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { localSaveUserProfile } from '../lib/localClubStore';
 import { BrowserNotificationPermission } from '../lib/notifications';
 import {
   CourtBooking,
@@ -107,6 +108,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
     setSaving(true);
     try {
+      if (!auth.currentUser) {
+        localSaveUserProfile(
+          profile.uid,
+          {
+            displayName: trimmedName,
+            skillLevel,
+            dominantHand,
+            preferredCourtId,
+            bio: trimmedBio
+          },
+          trimmedPhone
+        );
+        setSavedNotice(true);
+        window.setTimeout(() => setSavedNotice(false), 3000);
+        return;
+      }
+
       const batch = writeBatch(db);
       const userRef = doc(db, 'users', profile.uid);
       const privateRef = doc(db, 'users', profile.uid, 'private', 'info');

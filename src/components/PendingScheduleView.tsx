@@ -16,7 +16,8 @@ import {
   MATCH_FORMAT_LABELS,
   partitionActiveSchedules
 } from '../data/courts';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { localRescheduleBooking, localUpdateBookingPartners } from '../lib/localClubStore';
 import { CourtBooking, CourtId, CourtSchedule, CourtSlot } from '../types';
 
 interface PendingScheduleViewProps {
@@ -75,8 +76,14 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
   const handleSavePartners = async (booking: CourtBooking) => {
     setBusyId(booking.bookingId);
     try {
+      const cleanPartners = partnersDraft.trim().slice(0, 120);
+      if (!auth.currentUser) {
+        localUpdateBookingPartners(booking.bookingId, cleanPartners);
+        setEditingPartnersId(null);
+        return;
+      }
       await updateDoc(doc(db, 'bookings', booking.bookingId), {
-        partnerNames: partnersDraft.trim().slice(0, 120),
+        partnerNames: cleanPartners,
         updatedAt: serverTimestamp()
       });
       setEditingPartnersId(null);
@@ -117,7 +124,6 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
 
     setBusyId(booking.bookingId);
     try {
-      const batch = writeBatch(db);
       const oldKeys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
       if (booking.durationHours === 2) {
         oldKeys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
@@ -127,6 +133,36 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
         newKeys.push(makeSlotKey(booking.courtId, newDate, newHour + 1));
       }
 
+      if (!auth.currentUser) {
+        const newSlots: CourtSlot[] = newKeys.map((key, idx) => ({
+          slotKey: key,
+          courtId: booking.courtId,
+          date: newDate,
+          hour: newHour + idx,
+          startHour: newHour,
+          durationHours: booking.durationHours,
+          bookingId: booking.bookingId,
+          ownerId: uid,
+          status: 'reserved',
+          createdAt: new Date().toISOString()
+        }));
+        const res = localRescheduleBooking(
+          booking.bookingId,
+          newDate,
+          newHour,
+          oldKeys,
+          newSlots
+        );
+        if (!res.ok) {
+          setRescheduleError('Selected slot was taken. Please pick another open hour.');
+          return;
+        }
+        setReschedulingBooking(null);
+        setNewHour(null);
+        return;
+      }
+
+      const batch = writeBatch(db);
       oldKeys.forEach((key) => {
         if (!newKeys.includes(key)) {
           batch.delete(doc(db, 'courtSlots', key));

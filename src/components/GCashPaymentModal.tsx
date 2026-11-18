@@ -11,7 +11,8 @@ import {
   getCourtById,
   QueueAnalysis
 } from '../data/courts';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { localConfirmQRPayment } from '../lib/localClubStore';
 import { CourtBooking, CourtSchedule, PaymentTransaction } from '../types';
 import { GCashQRCode } from './GCashQRCode';
 
@@ -73,22 +74,6 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       const txId = createTxId();
       const paidAtIso = new Date().toISOString();
 
-      const batch = writeBatch(db);
-      const bookingRef = doc(db, 'bookings', booking.bookingId);
-      const txRef = doc(db, 'transactions', txId);
-      const scheduleRef = doc(db, 'courtSchedules', booking.bookingId);
-
-      batch.update(bookingRef, {
-        status: targetStatus,
-        paymentStatus: 'paid',
-        paymentMethod: 'GCash',
-        gcashReferenceNo: cleanRef,
-        gcashSenderNumber: cleanSender,
-        receiptNumber,
-        paidAtIso,
-        updatedAt: serverTimestamp()
-      });
-
       const txPayload: Omit<PaymentTransaction, 'createdAt'> & { createdAt: unknown } = {
         txId,
         ownerId: booking.ownerId,
@@ -109,10 +94,8 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         paymentStatus: 'paid',
         scheduleStatusAtPay: targetStatus,
         checkInCode: booking.checkInCode,
-        createdAt: serverTimestamp()
+        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
       };
-
-      batch.set(txRef, txPayload);
 
       const schedulePayload: Omit<CourtSchedule, 'createdAt' | 'updatedAt'> & {
         createdAt: unknown;
@@ -132,12 +115,45 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         isActive: true,
         checkedIn: false,
         scoreSummary: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString(),
+        updatedAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
       };
 
-      batch.set(scheduleRef, schedulePayload);
-      await batch.commit();
+      if (!auth.currentUser) {
+        localConfirmQRPayment(
+          booking.bookingId,
+          {
+            status: targetStatus,
+            paymentMethod: 'GCash',
+            gcashReferenceNo: cleanRef,
+            gcashSenderNumber: cleanSender,
+            receiptNumber,
+            paidAtIso
+          },
+          txPayload as PaymentTransaction,
+          schedulePayload as CourtSchedule
+        );
+      } else {
+        const batch = writeBatch(db);
+        const bookingRef = doc(db, 'bookings', booking.bookingId);
+        const txRef = doc(db, 'transactions', txId);
+        const scheduleRef = doc(db, 'courtSchedules', booking.bookingId);
+
+        batch.update(bookingRef, {
+          status: targetStatus,
+          paymentStatus: 'paid',
+          paymentMethod: 'GCash',
+          gcashReferenceNo: cleanRef,
+          gcashSenderNumber: cleanSender,
+          receiptNumber,
+          paidAtIso,
+          updatedAt: serverTimestamp()
+        });
+
+        batch.set(txRef, txPayload);
+        batch.set(scheduleRef, schedulePayload);
+        await batch.commit();
+      }
 
       const updatedBooking: CourtBooking = {
         ...booking,

@@ -12,7 +12,7 @@ import {
   Receipt,
   Smartphone
 } from 'lucide-react';
-import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   CLUB_INFO,
   computeCourtQueueInfo,
@@ -29,13 +29,15 @@ import {
   generateReceiptNumber,
   getCourtById,
   getPhilippineNowParts,
+  getPhilippineSlotTimestampMs,
   getUpcomingDates,
   makeSlotKey,
   MATCH_FORMAT_LABELS,
   PADDLE_RENTAL_FEE,
   QueueAnalysis
 } from '../data/courts';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { localConfirmQRPayment, localReserveBookingAndSlots } from '../lib/localClubStore';
 import {
   CourtBooking,
   CourtId,
@@ -204,9 +206,6 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         selectedHour
       );
 
-      const batch = writeBatch(db);
-      const bookingRef = doc(db, 'bookings', bookingId);
-
       const newBookingPayload: Omit<CourtBooking, 'createdAt' | 'updatedAt'> & {
         createdAt: unknown;
         updatedAt: unknown;
@@ -237,10 +236,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         updatedAt: serverTimestamp()
       };
 
-      batch.set(bookingRef, newBookingPayload);
-
       const firstSlotKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour);
-      batch.set(doc(db, 'courtSlots', firstSlotKey), {
+      const firstSlotPayload: CourtSlot = {
         slotKey: firstSlotKey,
         courtId: selectedCourt.id,
         date: selectedDate,
@@ -250,12 +247,13 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         bookingId,
         ownerId: uid,
         status: 'reserved',
-        createdAt: serverTimestamp()
-      });
+        createdAt: new Date().toISOString()
+      };
 
+      const localSlots: CourtSlot[] = [firstSlotPayload];
       if (durationHours === 2) {
         const secondSlotKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour + 1);
-        batch.set(doc(db, 'courtSlots', secondSlotKey), {
+        localSlots.push({
           slotKey: secondSlotKey,
           courtId: selectedCourt.id,
           date: selectedDate,
@@ -265,11 +263,52 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
           bookingId,
           ownerId: uid,
           status: 'reserved',
-          createdAt: serverTimestamp()
+          createdAt: new Date().toISOString()
         });
       }
 
-      await batch.commit();
+      if (!auth.currentUser) {
+        const res = localReserveBookingAndSlots(
+          {
+            ...newBookingPayload,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          } as CourtBooking,
+          localSlots
+        );
+        if (!res.ok) {
+          setSubmitError(
+            'That slot was just reserved by another player. Please choose another available time.'
+          );
+          return;
+        }
+      } else {
+        const batch = writeBatch(db);
+        const bookingRef = doc(db, 'bookings', bookingId);
+        batch.set(bookingRef, newBookingPayload);
+        batch.set(doc(db, 'courtSlots', firstSlotKey), {
+          ...firstSlotPayload,
+          createdAt: serverTimestamp()
+        });
+
+        if (durationHours === 2) {
+          const secondSlotKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour + 1);
+          batch.set(doc(db, 'courtSlots', secondSlotKey), {
+            slotKey: secondSlotKey,
+            courtId: selectedCourt.id,
+            date: selectedDate,
+            hour: selectedHour + 1,
+            startHour: selectedHour,
+            durationHours,
+            bookingId,
+            ownerId: uid,
+            status: 'reserved',
+            createdAt: serverTimestamp()
+          });
+        }
+
+        await batch.commit();
+      }
 
       setSelectedHour(null);
       setPartnerNames('');
@@ -284,9 +323,34 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('insufficient')) {
-        setSubmitError(
-          'That slot was just reserved by another player. Please choose another available time.'
-        );
+        try {
+          const firstKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour);
+          const slotSnap = await getDoc(doc(db, 'courtSlots', firstKey));
+          const slotData = slotSnap.exists() ? (slotSnap.data() as CourtSlot) : null;
+          if (slotData) {
+            const slotEndMs = getPhilippineSlotTimestampMs(
+              slotData.date,
+              (slotData.startHour ?? slotData.hour) + (slotData.durationHours ?? 1)
+            );
+            if (slotData.ownerId === uid && slotEndMs <= Date.now()) {
+              setSubmitError(
+                'An expired slot hold was detected. Refreshing availability — please tap Reserve again.'
+              );
+            } else {
+              setSubmitError(
+                'That slot was just reserved by another player. Please choose another available time.'
+              );
+            }
+          } else {
+            setSubmitError(
+              'Unable to save reservation to database. Please verify your login session and try again.'
+            );
+          }
+        } catch {
+          setSubmitError(
+            'That slot was just reserved by another player. Please choose another available time.'
+          );
+        }
       } else {
         handleFirestoreError(error, OperationType.WRITE, 'bookings');
       }
@@ -339,22 +403,6 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       const txId = createTxId();
       const paidAtIso = new Date().toISOString();
 
-      const batch = writeBatch(db);
-      const bookingRef = doc(db, 'bookings', activePaymentBooking.bookingId);
-      const txRef = doc(db, 'transactions', txId);
-      const scheduleRef = doc(db, 'courtSchedules', activePaymentBooking.bookingId);
-
-      batch.update(bookingRef, {
-        status: targetStatus,
-        paymentStatus: 'paid',
-        paymentMethod: 'GCash',
-        gcashReferenceNo: cleanRef,
-        gcashSenderNumber: cleanSender,
-        receiptNumber,
-        paidAtIso,
-        updatedAt: serverTimestamp()
-      });
-
       const txPayload: Omit<PaymentTransaction, 'createdAt'> & { createdAt: unknown } = {
         txId,
         ownerId: activePaymentBooking.ownerId,
@@ -375,10 +423,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         paymentStatus: 'paid',
         scheduleStatusAtPay: targetStatus,
         checkInCode: activePaymentBooking.checkInCode,
-        createdAt: serverTimestamp()
+        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
       };
-
-      batch.set(txRef, txPayload);
 
       const schedulePayload: Omit<CourtSchedule, 'createdAt' | 'updatedAt'> & {
         createdAt: unknown;
@@ -398,12 +444,45 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         isActive: true,
         checkedIn: false,
         scoreSummary: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: auth.currentUser ? serverTimestamp() : new Date().toISOString(),
+        updatedAt: auth.currentUser ? serverTimestamp() : new Date().toISOString()
       };
 
-      batch.set(scheduleRef, schedulePayload);
-      await batch.commit();
+      if (!auth.currentUser) {
+        localConfirmQRPayment(
+          activePaymentBooking.bookingId,
+          {
+            status: targetStatus,
+            paymentMethod: 'GCash',
+            gcashReferenceNo: cleanRef,
+            gcashSenderNumber: cleanSender,
+            receiptNumber,
+            paidAtIso
+          },
+          txPayload as PaymentTransaction,
+          schedulePayload as CourtSchedule
+        );
+      } else {
+        const batch = writeBatch(db);
+        const bookingRef = doc(db, 'bookings', activePaymentBooking.bookingId);
+        const txRef = doc(db, 'transactions', txId);
+        const scheduleRef = doc(db, 'courtSchedules', activePaymentBooking.bookingId);
+
+        batch.update(bookingRef, {
+          status: targetStatus,
+          paymentStatus: 'paid',
+          paymentMethod: 'GCash',
+          gcashReferenceNo: cleanRef,
+          gcashSenderNumber: cleanSender,
+          receiptNumber,
+          paidAtIso,
+          updatedAt: serverTimestamp()
+        });
+
+        batch.set(txRef, txPayload);
+        batch.set(scheduleRef, schedulePayload);
+        await batch.commit();
+      }
 
       const updatedBooking: CourtBooking = {
         ...activePaymentBooking,

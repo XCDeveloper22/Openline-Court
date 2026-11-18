@@ -3,6 +3,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -35,6 +36,12 @@ import {
   QueueAnalysis
 } from './data/courts';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import {
+  getLocalClubSnapshot,
+  localCompleteBooking,
+  localPromoteBooking,
+  subscribeLocalClubStore
+} from './lib/localClubStore';
 import { supabase } from './supabaseClient.js';
 import {
   BrowserNotificationPermission,
@@ -100,6 +107,7 @@ export default function App() {
   const promotedIdsRef = useRef<Set<string>>(new Set());
   const autoFinishedIdsRef = useRef<Set<string>>(new Set());
   const backfilledIdsRef = useRef<Set<string>>(new Set());
+  const expiredSlotCleanedRef = useRef<Set<string>>(new Set());
   const prevBookingStatusRef = useRef<Map<string, BookingStatus>>(new Map());
   const notifiedKeysRef = useRef<Set<string>>(new Set());
 
@@ -114,8 +122,9 @@ export default function App() {
       if (persistDedupe) {
         if (notifiedKeysRef.current.has(dedupeKey)) return;
         notifiedKeysRef.current.add(dedupeKey);
-        if (user) {
-          saveNotifiedKey(user.uid, dedupeKey);
+        const uid = user?.uid ?? supabaseUser?.id;
+        if (uid) {
+          saveNotifiedKey(uid, dedupeKey);
         }
       }
 
@@ -136,7 +145,7 @@ export default function App() {
         return [{ id: dedupeKey, title, body, booking }, ...prev].slice(0, 3);
       });
     },
-    [user]
+    [user, supabaseUser]
   );
 
   const handleEnableNotifications = useCallback(async () => {
@@ -170,6 +179,7 @@ export default function App() {
         promotedIdsRef.current.clear();
         autoFinishedIdsRef.current.clear();
         backfilledIdsRef.current.clear();
+        expiredSlotCleanedRef.current.clear();
         prevBookingStatusRef.current.clear();
         notifiedKeysRef.current.clear();
       } else {
@@ -214,30 +224,25 @@ export default function App() {
   }, [user, supabaseUser]);
 
   useEffect(() => {
-    if (!user && supabaseUser) {
-      const displayName =
-        supabaseUser.email?.split('@')[0]?.slice(0, 80) || 'Openline Player';
-      setProfile({
-        uid: supabaseUser.id,
-        displayName,
-        photoUrl: '',
-        skillLevel: '3.5',
-        dominantHand: 'Right',
-        preferredCourtId: 'court-1',
-        bio: '',
-        createdAt: null,
-        updatedAt: null
-      });
-      setPrivateInfo({
-        uid: supabaseUser.id,
-        email: supabaseUser.email ?? '',
-        phone: '',
-        updatedAt: null
-      });
+    if (user || !supabaseUser) return;
+
+    const syncFromStore = () => {
+      const snap = getLocalClubSnapshot(supabaseUser.id, supabaseUser.email ?? '');
+      setProfile(snap.profile);
+      setPrivateInfo(snap.privateInfo);
+      setBookings(snap.bookings);
+      setTransactions(snap.transactions);
+      setReservedSlots(snap.reservedSlots);
+      setSharedSchedules(snap.sharedSchedules);
       setBookingsLoading(false);
       setSlotsReady(true);
       setSharedSchedulesReady(true);
-    }
+    };
+
+    notifiedKeysRef.current = readNotifiedKeys(supabaseUser.id);
+    setNotificationPermission(getNotificationPermission());
+    syncFromStore();
+    return subscribeLocalClubStore(syncFromStore);
   }, [user, supabaseUser]);
 
   useEffect(() => {
@@ -416,9 +421,28 @@ export default function App() {
     });
   }, [user, profile, sharedSchedulesReady, bookings, sharedSchedules]);
 
+  // Clean up any expired owned courtSlots in Firestore so past hours never block bookings
+  useEffect(() => {
+    if (!user || !slotsReady || reservedSlots.length === 0) return;
+
+    reservedSlots.forEach((slot) => {
+      if (slot.ownerId !== user.uid) return;
+      const endMs = getPhilippineSlotTimestampMs(
+        slot.date,
+        (slot.startHour ?? slot.hour) + (slot.durationHours ?? 1)
+      );
+      if (endMs <= nowMs && !expiredSlotCleanedRef.current.has(slot.slotKey)) {
+        expiredSlotCleanedRef.current.add(slot.slotKey);
+        void deleteDoc(doc(db, 'courtSlots', slot.slotKey)).catch(() => {
+          expiredSlotCleanedRef.current.delete(slot.slotKey);
+        });
+      }
+    });
+  }, [user, slotsReady, reservedSlots, nowMs]);
+
   // Global auto-promotion: when a paid 'pending' booking has 0 schedules ahead of it, promote to 'current'
   useEffect(() => {
-    if (!slotsReady || bookings.length === 0) return;
+    if ((!user && !supabaseUser) || !slotsReady || bookings.length === 0) return;
 
     bookings.forEach((booking) => {
       if (booking.status !== 'pending' || (booking.paymentStatus && booking.paymentStatus !== 'paid')) {
@@ -437,6 +461,27 @@ export default function App() {
 
       if (queue.aheadCount === 0) {
         promotedIdsRef.current.add(booking.bookingId);
+        const promotedBooking: CourtBooking = { ...booking, status: 'current' };
+        const courtLabel = getCourtById(booking.courtId).name;
+        const notifyPromoted = () => {
+          setPromotedNoticeBooking(promotedBooking);
+          pushCourtAlert(
+            `promoted_${booking.bookingId}`,
+            `It's Your Turn Now · ${courtLabel}`,
+            `Your schedule moved from Next to Current on ${courtLabel} (${formatHourRange(
+              booking.startHour,
+              booking.durationHours
+            )}). Show code ${booking.checkInCode} to the watcher.`,
+            promotedBooking
+          );
+        };
+
+        if (!user && supabaseUser) {
+          localPromoteBooking(booking.bookingId);
+          notifyPromoted();
+          return;
+        }
+
         const batch = writeBatch(db);
         batch.update(doc(db, 'bookings', booking.bookingId), {
           status: 'current',
@@ -450,31 +495,20 @@ export default function App() {
         }
         void batch
           .commit()
-          .then(() => {
-            const promotedBooking: CourtBooking = { ...booking, status: 'current' };
-            setPromotedNoticeBooking(promotedBooking);
-            const courtLabel = getCourtById(booking.courtId).name;
-            pushCourtAlert(
-              `promoted_${booking.bookingId}`,
-              `It's Your Turn Now · ${courtLabel}`,
-              `Your schedule moved from Next to Current on ${courtLabel} (${formatHourRange(
-                booking.startHour,
-                booking.durationHours
-              )}). Show code ${booking.checkInCode} to the watcher.`,
-              promotedBooking
-            );
-          })
+          .then(notifyPromoted)
           .catch((error) => {
             promotedIdsRef.current.delete(booking.bookingId);
             handleFirestoreError(error, OperationType.UPDATE, `bookings/${booking.bookingId}`);
           });
       }
     });
-  }, [slotsReady, bookings, reservedSlots, sharedSchedules, nowMs, pushCourtAlert]);
+  }, [user, supabaseUser, slotsReady, bookings, reservedSlots, sharedSchedules, nowMs, pushCourtAlert]);
 
   // Auto-finish: once a current schedule reaches its scheduled PHT end time, automatically complete it
   useEffect(() => {
-    if (!user || !slotsReady || !sharedSchedulesReady || bookings.length === 0) return;
+    if ((!user && !supabaseUser) || !slotsReady || !sharedSchedulesReady || bookings.length === 0) {
+      return;
+    }
 
     bookings.forEach((booking) => {
       if (booking.courtId !== 'court-1' && booking.courtId !== 'court-2') return;
@@ -490,6 +524,38 @@ export default function App() {
 
       autoFinishedIdsRef.current.add(booking.bookingId);
       const cleanScore = (booking.scoreSummary ?? '').slice(0, 64);
+      const slotKeys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
+      if (booking.durationHours === 2) {
+        slotKeys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
+      }
+
+      const notifyFinished = () => {
+        setPromotedNoticeBooking((prev) =>
+          prev?.bookingId === booking.bookingId ? null : prev
+        );
+        const courtLabel = getCourtById(booking.courtId).name;
+        const completedBooking: CourtBooking = {
+          ...booking,
+          status: 'completed',
+          checkedIn: true
+        };
+        pushCourtAlert(
+          `finished_${booking.bookingId}`,
+          `Schedule Finished · ${courtLabel}`,
+          `Your ${formatHourRange(
+            booking.startHour,
+            booking.durationHours
+          )} session on ${courtLabel} is complete and logged in Completed Matches.`,
+          completedBooking
+        );
+      };
+
+      if (!user && supabaseUser) {
+        localCompleteBooking(booking.bookingId, cleanScore, slotKeys);
+        notifyFinished();
+        return;
+      }
+
       const batch = writeBatch(db);
 
       batch.update(doc(db, 'bookings', booking.bookingId), {
@@ -509,10 +575,6 @@ export default function App() {
         });
       }
 
-      const slotKeys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
-      if (booking.durationHours === 2) {
-        slotKeys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
-      }
       slotKeys.forEach((key) => {
         if (reservedSlots.some((s) => s.slotKey === key && s.ownerId === booking.ownerId)) {
           batch.delete(doc(db, 'courtSlots', key));
@@ -521,26 +583,7 @@ export default function App() {
 
       void batch
         .commit()
-        .then(() => {
-          setPromotedNoticeBooking((prev) =>
-            prev?.bookingId === booking.bookingId ? null : prev
-          );
-          const courtLabel = getCourtById(booking.courtId).name;
-          const completedBooking: CourtBooking = {
-            ...booking,
-            status: 'completed',
-            checkedIn: true
-          };
-          pushCourtAlert(
-            `finished_${booking.bookingId}`,
-            `Schedule Finished · ${courtLabel}`,
-            `Your ${formatHourRange(
-              booking.startHour,
-              booking.durationHours
-            )} session on ${courtLabel} is complete and logged in Completed Matches.`,
-            completedBooking
-          );
-        })
+        .then(notifyFinished)
         .catch((error) => {
           autoFinishedIdsRef.current.delete(booking.bookingId);
           handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
@@ -548,6 +591,7 @@ export default function App() {
     });
   }, [
     user,
+    supabaseUser,
     slotsReady,
     sharedSchedulesReady,
     bookings,
@@ -559,7 +603,7 @@ export default function App() {
 
   // Detect any status change from 'pending' -> 'current' (e.g. from another device or tab)
   useEffect(() => {
-    if (!user || bookings.length === 0) return;
+    if ((!user && !supabaseUser) || bookings.length === 0) return;
 
     const prevMap = prevBookingStatusRef.current;
     bookings.forEach((booking) => {
@@ -580,11 +624,11 @@ export default function App() {
       }
       prevMap.set(booking.bookingId, booking.status);
     });
-  }, [user, bookings, pushCourtAlert]);
+  }, [user, supabaseUser, bookings, pushCourtAlert]);
 
   // Alert user 5 minutes before their scheduled court start time
   useEffect(() => {
-    if (!user || bookings.length === 0) return;
+    if ((!user && !supabaseUser) || bookings.length === 0) return;
 
     const checkUpcomingReminders = () => {
       const now = Date.now();
@@ -614,7 +658,7 @@ export default function App() {
     checkUpcomingReminders();
     const timerId = window.setInterval(checkUpcomingReminders, 5000);
     return () => window.clearInterval(timerId);
-  }, [user, bookings, pushCourtAlert]);
+  }, [user, supabaseUser, bookings, pushCourtAlert]);
 
   const handleSplashComplete = useCallback(() => {
     setSplashDone(true);
