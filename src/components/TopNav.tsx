@@ -99,7 +99,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   const getCountText = (id: TabId): string | null => {
     if (id === 'current' && currentCount > 0) return String(currentCount);
     if (id === 'pending' && pendingCount > 0) return String(pendingCount);
-    if (id === 'transact' && unpaidCount > 0) return `${unpaidCount}`;
+    if (id === 'transact' && unpaidCount > 0) return String(unpaidCount);
     return null;
   };
 
@@ -121,27 +121,27 @@ export const TopNav: React.FC<TopNavProps> = ({
 
   return (
     <>
-      {/* Desktop Simple Top Navigation Bar */}
-      <header className="hidden lg:block sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-pink-200/80">
+      {/* Desktop Fresh Top Navigation Bar */}
+      <header className="hidden lg:block sticky top-0 z-30 bg-white/92 backdrop-blur-xl border-b border-slate-200/80">
         <div className="container-4k px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          {/* Left: Clean Brand Mark */}
+          {/* Left: Brand */}
           <button
             type="button"
             onClick={() => handleChooseTab('book')}
             className="flex items-center gap-2.5 group cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D] shrink-0"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#BE185D] text-white flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#BE185D] text-white flex items-center justify-center shadow-xs shrink-0">
               <PickleballLogoMark className="w-5 h-5" />
             </div>
-            <span className="font-display text-base font-bold tracking-tight text-[#831843] group-hover:text-[#BE185D] transition-colors">
+            <span className="font-display text-base font-bold tracking-tight text-slate-900 group-hover:text-[#BE185D] transition-colors">
               {CLUB_INFO.name}
             </span>
           </button>
 
-          {/* Center: Just 4 Clear Primary Actions */}
+          {/* Center: Clean 4-Tab Track */}
           <nav
             aria-label="Main Navigation"
-            className="flex items-center gap-1 p-1 rounded-2xl bg-[#FFF6F9] border border-pink-200/75"
+            className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100/90 border border-slate-200/70"
           >
             {PRIMARY_TABS.map((item) => {
               const Icon = item.icon;
@@ -153,10 +153,10 @@ export const TopNav: React.FC<TopNavProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleChooseTab(item.id)}
-                  className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
                     isActive
                       ? 'bg-[#BE185D] text-white shadow-xs'
-                      : 'text-slate-700 hover:bg-white hover:text-[#831843]'
+                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
                   }`}
                 >
                   <Icon
@@ -170,7 +170,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                           ? 'bg-white/20 text-white'
                           : item.id === 'transact'
                             ? 'bg-amber-100 text-amber-900'
-                            : 'bg-pink-100 text-[#831843]'
+                            : 'bg-pink-100 text-[#BE185D]'
                       }`}
                     >
                       {countText}
@@ -181,7 +181,7 @@ export const TopNav: React.FC<TopNavProps> = ({
             })}
           </nav>
 
-          {/* Right: Single Friendly Account & More Menu */}
+          {/* Right: Friendly Player Dropdown */}
           <div className="relative shrink-0" ref={menuRef}>
             <button
               type="button"
@@ -192,7 +192,7 @@ export const TopNav: React.FC<TopNavProps> = ({
               className={`min-h-[40px] pl-1.5 pr-3 py-1 rounded-xl border inline-flex items-center gap-2 transition-colors cursor-pointer ${
                 menuOpen || isSecondaryActive
                   ? 'bg-pink-50 border-[#BE185D] text-[#831843]'
-                  : 'bg-white border-pink-200/80 text-slate-800 hover:bg-pink-50'
+                  : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
               }`}
             >
               {playerPhotoUrl && !avatarFailed ? (
@@ -210,7 +210,7 @@ export const TopNav: React.FC<TopNavProps> = ({
               )}
               <span className="text-xs font-semibold max-w-[100px] truncate">{firstName}</span>
               <ChevronDown
-                className={`w-4 h-4 text-[#BE185D] transition-transform ${
+                className={`w-4 h-4 text-slate-500 transition-transform ${
                   menuOpen ? 'rotate-180' : ''
                 }`}
                 aria-hidden="true"
@@ -220,9 +220,9 @@ export const TopNav: React.FC<TopNavProps> = ({
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-pink-200 shadow-lg p-2 space-y-1 z-50"
+                className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 space-y-1 z-50"
               >
-                <div className="px-3 py-2 border-b border-pink-100 mb-1">
+                <div className="px-3 py-2 border-b border-slate-100 mb-1">
                   <p className="text-xs font-semibold text-slate-900 truncate">{playerName}</p>
                   <p className="font-mono text-[11px] text-slate-500 tabular-nums">
                     PHT · {phtClock}
@@ -241,7 +241,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                       className={`w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
                         active
                           ? 'bg-[#BE185D] text-white'
-                          : 'text-slate-700 hover:bg-pink-50 hover:text-[#831843]'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
                       <Icon
@@ -260,7 +260,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                       setMenuOpen(false);
                       onEnableNotifications();
                     }}
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-[#831843] hover:bg-pink-50 flex items-center gap-2.5 cursor-pointer"
+                    className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
                   >
                     <Bell className="w-4 h-4 text-[#BE185D] shrink-0" aria-hidden="true" />
                     <span>Turn On Court Alerts</span>
@@ -273,13 +273,13 @@ export const TopNav: React.FC<TopNavProps> = ({
                   rel="noopener noreferrer"
                   role="menuitem"
                   onClick={() => setMenuOpen(false)}
-                  className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-[#831843] hover:bg-pink-50 flex items-center gap-2.5"
+                  className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center gap-2.5"
                 >
                   <FacebookLogo className="w-4 h-4 shrink-0" />
                   <span>@openlinecourt</span>
                 </a>
 
-                <div className="pt-1 mt-1 border-t border-pink-100">
+                <div className="pt-1 mt-1 border-t border-slate-100">
                   <button
                     type="button"
                     role="menuitem"
@@ -300,12 +300,12 @@ export const TopNav: React.FC<TopNavProps> = ({
       </header>
 
       {/* Mobile Compact Header Bar (< lg) */}
-      <header className="lg:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-pink-200/80">
+      <header className="lg:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-200/80">
         <div className="px-4 h-14 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => handleChooseTab('book')}
-            className="font-display text-base font-bold tracking-tight text-[#831843] whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2.5"
+            className="font-display text-base font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2.5"
           >
             <span className="w-8 h-8 rounded-xl bg-[#BE185D] text-white inline-flex items-center justify-center shrink-0">
               <PickleballLogoMark className="w-4.5 h-4.5" />
@@ -318,9 +318,9 @@ export const TopNav: React.FC<TopNavProps> = ({
             onClick={() => setDrawerOpen(true)}
             aria-label="Open navigation menu"
             aria-expanded={drawerOpen}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 text-xs font-semibold text-[#831843] bg-pink-50 hover:bg-pink-100 border border-pink-200/80 rounded-xl whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200/70 border border-slate-200 rounded-xl whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Menu className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <Menu className="w-4 h-4 text-[#BE185D] shrink-0" aria-hidden="true" />
             <span>Menu</span>
           </button>
         </div>
@@ -329,7 +329,7 @@ export const TopNav: React.FC<TopNavProps> = ({
       {/* Mobile Full Navigation Drawer */}
       {drawerOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-50 bg-[#500724]/50 backdrop-blur-xs flex justify-end"
+          className="lg:hidden fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-xs flex justify-end"
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
@@ -340,15 +340,15 @@ export const TopNav: React.FC<TopNavProps> = ({
             onClick={() => setDrawerOpen(false)}
             className="flex-1 h-full cursor-default"
           />
-          <aside className="w-[86%] max-w-sm h-full bg-white border-l border-pink-200 flex flex-col justify-between overflow-y-auto">
+          <aside className="w-[86%] max-w-sm h-full bg-white border-l border-slate-200 flex flex-col justify-between overflow-y-auto">
             <div>
-              <div className="px-5 py-4 border-b border-pink-100 flex items-center justify-between gap-3">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="w-8 h-8 rounded-xl bg-[#BE185D] text-white inline-flex items-center justify-center shrink-0">
                     <PickleballLogoMark className="w-4.5 h-4.5" />
                   </span>
                   <div className="min-w-0">
-                    <p className="font-display text-sm font-bold text-[#831843] truncate">
+                    <p className="font-display text-sm font-bold text-slate-900 truncate">
                       {playerName}
                     </p>
                     <p className="font-mono text-[11px] text-slate-500 tabular-nums">
@@ -360,7 +360,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                   type="button"
                   onClick={() => setDrawerOpen(false)}
                   aria-label="Close navigation menu"
-                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[#831843] hover:bg-pink-50 cursor-pointer"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -383,7 +383,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                         className={`w-full min-h-[48px] px-4 py-3 rounded-xl text-left flex items-center justify-between gap-3 transition-colors cursor-pointer ${
                           isActive
                             ? 'bg-[#BE185D] text-white'
-                            : 'bg-white border border-pink-200/70 text-slate-800 hover:bg-pink-50'
+                            : 'bg-white border border-slate-200 text-slate-800 hover:bg-slate-50'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -429,7 +429,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                         className={`w-full min-h-[46px] px-4 py-2.5 rounded-xl text-left flex items-center justify-between gap-3 transition-colors cursor-pointer ${
                           isActive
                             ? 'bg-[#BE185D] text-white'
-                            : 'bg-[#FFF9FB] border border-pink-200/60 text-slate-800 hover:bg-pink-50'
+                            : 'bg-slate-50/70 border border-slate-200/80 text-slate-800 hover:bg-slate-100'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -453,7 +453,7 @@ export const TopNav: React.FC<TopNavProps> = ({
               </div>
             </div>
 
-            <div className="p-4 border-t border-pink-100 bg-[#FFF9FB] space-y-2.5">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/70 space-y-2.5">
               {notificationPermission === 'default' && (
                 <button
                   type="button"
@@ -461,7 +461,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                     setDrawerOpen(false);
                     onEnableNotifications();
                   }}
-                  className="w-full min-h-[42px] px-4 py-2 rounded-xl bg-white border border-pink-200 hover:bg-pink-50 text-xs font-semibold text-[#831843] inline-flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full min-h-[42px] px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-xs font-semibold text-slate-800 inline-flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Bell className="w-4 h-4 text-[#BE185D]" aria-hidden="true" />
                   <span>Turn On Court Alerts</span>
@@ -474,7 +474,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Openline Court Facebook Page"
-                  className="min-h-[44px] px-2.5 py-2 rounded-xl hover:bg-pink-50 inline-flex items-center gap-1.5 text-xs font-semibold text-[#831843]"
+                  className="min-h-[44px] px-2.5 py-2 rounded-xl hover:bg-slate-100 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-800"
                 >
                   <FacebookLogo className="w-4 h-4 shrink-0" />
                   <span>@openlinecourt</span>
@@ -486,7 +486,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                     setDrawerOpen(false);
                     onSignOut();
                   }}
-                  className="min-h-[44px] px-4 py-2 bg-pink-50 hover:bg-pink-100 border border-pink-200 text-[#831843] text-xs font-semibold rounded-xl inline-flex items-center justify-center gap-2 cursor-pointer"
+                  className="min-h-[44px] px-4 py-2 bg-white hover:bg-red-50 border border-slate-200 text-red-700 text-xs font-semibold rounded-xl inline-flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" aria-hidden="true" />
                   <span>Sign Out</span>

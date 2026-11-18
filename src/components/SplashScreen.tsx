@@ -68,7 +68,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
 
   return (
     <div
-      className="min-h-dvh w-full bg-[#500724] bg-[radial-gradient(circle_at_50%_35%,_rgba(190,24,93,0.42),_rgba(80,7,36,1)_68%)] text-white flex flex-col items-center justify-center p-6 sm:p-10 select-none"
+      className="min-h-dvh w-full bg-[#831843] bg-[radial-gradient(circle_at_50%_30%,_rgba(244,114,182,0.45),_rgba(131,24,67,1)_68%)] text-white flex flex-col items-center justify-center p-6 sm:p-10 select-none"
       role="status"
       aria-label="Loading Openline Court"
     >

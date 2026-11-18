@@ -277,7 +277,7 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search receipt, ref, court..."
                   aria-label="Search receipts"
-                  className="w-full min-h-[40px] pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-[#FFF9FB] border border-pink-200/80 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#BE185D]"
+                  className="w-full min-h-[40px] pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#BE185D]"
                 />
               </div>
             )}

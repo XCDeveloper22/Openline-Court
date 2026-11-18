@@ -434,13 +434,17 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
     }
   };
 
+  const firstName = (playerName || 'Player').trim().split(' ')[0] || 'Player';
   const currentStepIdx = STEP_LABELS.findIndex((s) => s.id === flowStep);
 
   return (
-    <div ref={topRef} className="space-y-6 sm:space-y-8 2xl:space-y-10">
+    <div ref={topRef} className="space-y-6 sm:space-y-8">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
+          <p className="text-xs font-semibold text-[#BE185D] tracking-wide">
+            Hey {firstName}, ready to play?
+          </p>
+          <h1 className="mt-1 font-display text-[clamp(1.5rem,2.6vw,2.15rem)] font-semibold tracking-tight text-slate-900">
             Book a Court
           </h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -451,7 +455,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
         {/* Continuous 4-Step Flow Indicator */}
         <ol
           aria-label="Booking Progress"
-          className="surface-2026 grid grid-cols-4 gap-1 sm:gap-1.5 rounded-2xl p-1.5 xl:min-w-[420px] shrink-0"
+          className="bg-slate-100/90 border border-slate-200/80 grid grid-cols-4 gap-1 sm:gap-1.5 rounded-2xl p-1.5 xl:min-w-[430px] shrink-0"
         >
           {STEP_LABELS.map((step, idx) => {
             const isCurrent = step.id === flowStep;
@@ -459,11 +463,11 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
             return (
               <li
                 key={step.id}
-                className={`min-w-0 px-1.5 sm:px-2.5 py-2 rounded-xl text-center text-[11px] sm:text-xs font-medium truncate transition-colors ${
+                className={`min-w-0 px-2 py-2 rounded-xl text-center text-[11px] sm:text-xs font-medium truncate transition-colors ${
                   isCurrent
-                    ? 'bg-[#BE185D] text-white font-semibold'
+                    ? 'bg-[#BE185D] text-white font-semibold shadow-xs'
                     : isPast
-                      ? 'bg-pink-50 text-[#831843]'
+                      ? 'bg-white text-[#831843] font-semibold'
                       : 'text-slate-500'
                 }`}
               >
@@ -586,7 +590,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="px-5 py-4 flex items-center justify-between gap-2 bg-white">
+                  <div className="px-5 py-4 flex items-center justify-between gap-2 bg-white border-t border-slate-100">
                     <span
                       className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
                         activeToday.length === 0 ? 'text-emerald-700' : 'text-[#BE185D]'
@@ -599,7 +603,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                           : `${activeToday.length} booked today`}
                       </span>
                     </span>
-                    <span className="px-3.5 py-2 rounded-xl bg-pink-50 group-hover:bg-[#BE185D] text-[#831843] group-hover:text-white inline-flex items-center gap-1.5 text-xs font-semibold transition-colors">
+                    <span className="px-3.5 py-2 rounded-xl bg-slate-100 group-hover:bg-[#BE185D] text-slate-900 group-hover:text-white inline-flex items-center gap-1.5 text-xs font-semibold transition-colors">
                       <span>Select Court</span>
                       <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
                     </span>
@@ -695,7 +699,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                         className={`min-h-[56px] min-w-[76px] px-3.5 py-2.5 rounded-2xl border text-left shrink-0 transition-all cursor-pointer ${
                           active
                             ? 'bg-[#BE185D] border-[#BE185D] text-white shadow-xs'
-                            : 'bg-white border-pink-200/80 text-slate-700 hover:border-[#BE185D]'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-[#BE185D]'
                         }`}
                       >
                         <p className={`text-[11px] font-medium ${active ? 'text-pink-100' : 'text-slate-500'}`}>
@@ -710,7 +714,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-pink-100">
+              <div className="pt-6 border-t border-slate-100">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-display text-base sm:text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#BE185D]" aria-hidden="true" />
@@ -743,8 +747,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                           isChosen || isSecondCovered
                             ? 'bg-[#BE185D] border-[#BE185D] text-white shadow-xs cursor-pointer'
                             : available
-                              ? 'bg-white border-pink-200/80 text-slate-900 hover:border-[#BE185D] hover:bg-pink-50/40 cursor-pointer'
-                              : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                              ? 'bg-white border-slate-200 text-slate-900 hover:border-[#BE185D] hover:bg-rose-50/40 cursor-pointer'
+                              : 'bg-slate-50 border-slate-200/70 text-slate-400 cursor-not-allowed'
                         }`}
                       >
                         <span className="font-mono text-xs sm:text-sm font-semibold tabular-nums whitespace-nowrap">
@@ -781,14 +785,14 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
             </div>
 
             {/* Right Column: Sticky Summary & Continue to QR */}
-            <div className="lg:col-span-4 lg:border-l lg:border-pink-100 lg:pl-8 lg:sticky lg:top-24 space-y-5">
+            <div className="lg:col-span-4 lg:border-l lg:border-slate-100 lg:pl-8 lg:sticky lg:top-24 space-y-5">
               <h3 className="font-display text-base sm:text-lg font-semibold text-slate-900">
                 Your Booking
               </h3>
 
               <div>
                 <span className="block text-sm font-medium text-slate-700">Play Type</span>
-                <div className="mt-1.5 grid grid-cols-3 gap-1.5 p-1 bg-pink-50 border border-pink-200/60 rounded-xl">
+                <div className="mt-1.5 grid grid-cols-3 gap-1.5 p-1 bg-slate-100 border border-slate-200/70 rounded-xl">
                   {(['singles', 'doubles', 'drills'] as MatchFormat[]).map((fmt) => (
                     <button
                       key={fmt}
@@ -796,7 +800,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                       onClick={() => setMatchFormat(fmt)}
                       className={`min-h-[40px] py-2 px-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                         matchFormat === fmt
-                          ? 'bg-white text-[#831843] shadow-xs font-semibold'
+                          ? 'bg-white text-slate-900 shadow-xs font-semibold'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
@@ -817,11 +821,11 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                   placeholder="e.g. Marco, Bea"
                   value={partnerNames}
                   onChange={(e) => setPartnerNames(e.target.value)}
-                  className="mt-1.5 w-full min-h-[44px] px-3.5 py-2.5 text-sm text-slate-900 bg-white border border-pink-200 rounded-xl focus:outline-none focus:border-[#BE185D]"
+                  className="mt-1.5 w-full min-h-[44px] px-3.5 py-2.5 text-sm text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#BE185D]"
                 />
               </div>
 
-              <label className="flex items-start gap-3 p-3.5 rounded-xl border border-pink-200/80 hover:bg-pink-50/40 cursor-pointer">
+              <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={paddleRental}
@@ -830,7 +834,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                 />
                 <span className="text-sm text-slate-700">
                   Rent paddles &amp; balls{' '}
-                  <span className="font-mono text-xs text-[#831843] tabular-nums">
+                  <span className="font-mono text-xs text-[#BE185D] font-semibold tabular-nums">
                     (+₱{PADDLE_RENTAL_FEE})
                   </span>
                 </span>
