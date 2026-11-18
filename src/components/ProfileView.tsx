@@ -24,7 +24,6 @@ interface ProfileViewProps {
   clubPendingCount: number;
   notificationPermission: BrowserNotificationPermission;
   onEnableNotifications: () => void;
-  onTestNotification: () => void;
 }
 
 const SKILL_LEVELS: SkillLevel[] = ['2.5', '3.0', '3.5', '4.0', '4.5', '5.0+'];
@@ -37,8 +36,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   clubCurrentCount,
   clubPendingCount,
   notificationPermission,
-  onEnableNotifications,
-  onTestNotification
+  onEnableNotifications
 }) => {
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>(profile?.skillLevel ?? '3.5');
@@ -290,24 +288,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     : 'Waiting for Browser Permission'}
             </p>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              {notificationPermission === 'default' && (
-                <button
-                  type="button"
-                  onClick={onEnableNotifications}
-                  className="flex-1 min-h-[44px] px-4 py-2 bg-[#BE185D] text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-[#9D174D] whitespace-nowrap cursor-pointer"
-                >
-                  Enable Push Alerts
-                </button>
-              )}
+            {notificationPermission === 'default' && (
               <button
                 type="button"
-                onClick={onTestNotification}
-                className="flex-1 min-h-[44px] px-4 py-2 border border-pink-200 text-[#831843] bg-pink-50/70 hover:bg-pink-100 text-xs sm:text-sm font-medium rounded-xl whitespace-nowrap cursor-pointer"
+                onClick={onEnableNotifications}
+                className="w-full min-h-[44px] px-4 py-2 bg-[#BE185D] text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-[#9D174D] whitespace-nowrap cursor-pointer"
               >
-                Send Test Alert
+                Enable Push Alerts
               </button>
-            </div>
+            )}
           </section>
         </div>
 

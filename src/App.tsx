@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import {
   collection,
@@ -34,6 +35,7 @@ import {
   QueueAnalysis
 } from './data/courts';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { supabase } from './supabaseClient.js';
 import {
   BrowserNotificationPermission,
   getNotificationPermission,
@@ -63,7 +65,9 @@ interface InAppAlert {
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [supabaseReady, setSupabaseReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -148,15 +152,6 @@ export default function App() {
     }
   }, []);
 
-  const handleTestNotification = useCallback(() => {
-    const testId = `test_${Date.now()}`;
-    const body =
-      notificationPermission === 'granted'
-        ? 'Sample alert: Court 1 starts in 5 minutes. Your browser push notifications are working.'
-        : 'Sample in-app alert: Court 1 starts in 5 minutes. Enable browser permission for OS push alerts too.';
-    pushCourtAlert(testId, 'Openline Court · Test Reminder', body, null, false);
-  }, [notificationPermission, pushCourtAlert]);
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -186,12 +181,64 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    let mounted = true;
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSupabaseUser(data.session?.user ?? null);
+        setSupabaseReady(true);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setSupabaseReady(true);
+      });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseUser(session?.user ?? null);
+      setSupabaseReady(true);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user && !supabaseUser) return;
     const id = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
     return () => window.clearInterval(id);
-  }, [user]);
+  }, [user, supabaseUser]);
+
+  useEffect(() => {
+    if (!user && supabaseUser) {
+      const displayName =
+        supabaseUser.email?.split('@')[0]?.slice(0, 80) || 'Openline Player';
+      setProfile({
+        uid: supabaseUser.id,
+        displayName,
+        photoUrl: '',
+        skillLevel: '3.5',
+        dominantHand: 'Right',
+        preferredCourtId: 'court-1',
+        bio: '',
+        createdAt: null,
+        updatedAt: null
+      });
+      setPrivateInfo({
+        uid: supabaseUser.id,
+        email: supabaseUser.email ?? '',
+        phone: '',
+        updatedAt: null
+      });
+      setBookingsLoading(false);
+      setSlotsReady(true);
+      setSharedSchedulesReady(true);
+    }
+  }, [user, supabaseUser]);
 
   useEffect(() => {
     if (!authReady || !user) return;
@@ -573,19 +620,21 @@ export default function App() {
     setSplashDone(true);
   }, []);
 
-  if (!splashDone || !authReady) {
+  if (!splashDone || !authReady || !supabaseReady) {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
-  if (!user) {
+  if (!user && !supabaseUser) {
     return <LoginScreen />;
   }
+
+  const activeUid = user?.uid ?? supabaseUser?.id ?? '';
 
   const { currentSchedules, pendingSchedules } = partitionActiveSchedules(
     sharedSchedules,
     bookings,
     reservedSlots,
-    user.uid,
+    activeUid,
     nowMs
   );
   const currentCount = currentSchedules.length;
@@ -597,11 +646,15 @@ export default function App() {
   );
 
   const handleSignOut = async () => {
-    await signOut(auth);
+    await Promise.allSettled([signOut(auth), supabase.auth.signOut()]);
     setActiveTab('profile');
   };
 
-  const playerName = profile?.displayName || user.displayName || 'Openline Player';
+  const playerName =
+    profile?.displayName ||
+    user?.displayName ||
+    supabaseUser?.email?.split('@')[0] ||
+    'Openline Player';
 
   return (
     <div className="min-h-dvh bg-[#FFF9FB] bg-[radial-gradient(ellipse_at_top_right,_rgba(244,114,182,0.10),_transparent_55%)] flex flex-col lg:flex-row">
@@ -615,7 +668,7 @@ export default function App() {
         notificationPermission={notificationPermission}
         onEnableNotifications={handleEnableNotifications}
         playerName={playerName}
-        playerPhotoUrl={profile?.photoUrl || user.photoURL || undefined}
+        playerPhotoUrl={profile?.photoUrl || user?.photoURL || undefined}
       />
 
       <div className="flex-1 min-w-0 flex flex-col lg:order-1">
@@ -755,13 +808,12 @@ export default function App() {
               clubPendingCount={pendingCount}
               notificationPermission={notificationPermission}
               onEnableNotifications={handleEnableNotifications}
-              onTestNotification={handleTestNotification}
             />
           )}
 
           {activeTab === 'book' && (
             <BookCourtView
-              uid={user.uid}
+              uid={activeUid}
               playerName={playerName}
               defaultCourtId={profile?.preferredCourtId === 'court-2' ? 'court-2' : 'court-1'}
               unpaidBookings={unpaidBookings}
@@ -776,7 +828,7 @@ export default function App() {
 
           {activeTab === 'current' && (
             <CurrentScheduleView
-              uid={user.uid}
+              uid={activeUid}
               bookings={bookings}
               sharedSchedules={sharedSchedules}
               reservedSlots={reservedSlots}
@@ -787,7 +839,7 @@ export default function App() {
 
           {activeTab === 'pending' && (
             <PendingScheduleView
-              uid={user.uid}
+              uid={activeUid}
               bookings={bookings}
               sharedSchedules={sharedSchedules}
               reservedSlots={reservedSlots}
@@ -813,7 +865,7 @@ export default function App() {
 
           {activeTab === 'map' && (
             <FacilityMapView
-              uid={user.uid}
+              uid={activeUid}
               bookings={bookings}
               sharedSchedules={sharedSchedules}
               reservedSlots={reservedSlots}

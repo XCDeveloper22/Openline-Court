@@ -1,30 +1,27 @@
 import React, { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
 import { ExternalLink, MapPin } from 'lucide-react';
 import { CLUB_INFO } from '../data/courts';
-import { auth, googleProvider } from '../lib/firebase';
+import { supabase } from '../supabaseClient.js';
 import { FacebookLogo } from './FacebookLogo';
+import { SignInForm } from './SignInForm';
+import { SignUpForm } from './SignUpForm';
 
 export const LoginScreen: React.FC = () => {
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [signingIn, setSigningIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleGoogleSignIn = async () => {
     setErrorMsg(null);
     setSigningIn(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      const code = (error as { code?: string })?.code;
-      if (code === 'auth/popup-closed-by-user') {
-        setErrorMsg('Sign-in popup was closed before completing. Please try again.');
-      } else if (code === 'auth/popup-blocked') {
-        setErrorMsg('Popup was blocked by your browser. Allow popups for this site and try again.');
-      } else {
-        setErrorMsg(
-          error instanceof Error ? error.message : 'Unable to sign in with your Gmail account.'
-        );
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
       }
+    });
+    if (error) {
+      setErrorMsg(error.message);
       setSigningIn(false);
     }
   };
@@ -98,17 +95,58 @@ export const LoginScreen: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-8">
+          <div className="mt-7">
+            <div
+              className="grid grid-cols-2 gap-1 p-1 bg-pink-50 border border-pink-200/80 rounded-xl mb-4"
+              role="tablist"
+              aria-label="Account authentication mode"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === 'signin'}
+                onClick={() => setAuthMode('signin')}
+                className={`min-h-[40px] py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  authMode === 'signin'
+                    ? 'bg-white text-[#831843] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === 'signup'}
+                onClick={() => setAuthMode('signup')}
+                className={`min-h-[40px] py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  authMode === 'signup'
+                    ? 'bg-white text-[#831843] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            {authMode === 'signin' ? <SignInForm /> : <SignUpForm />}
+
+            <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+              <div className="flex-1 h-px bg-pink-200/70" />
+              <span>or</span>
+              <div className="flex-1 h-px bg-pink-200/70" />
+            </div>
+
             <button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={signingIn}
-              className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#BE185D] text-white font-medium text-sm flex items-center justify-center gap-3 hover:bg-[#9D174D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D] disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="w-full min-h-[48px] px-5 py-3 rounded-xl border border-pink-200 bg-white text-[#831843] font-medium text-sm flex items-center justify-center gap-3 hover:bg-pink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D] disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               {signingIn ? (
                 <>
                   <svg
-                    className="w-4 h-4 animate-spin text-pink-200"
+                    className="w-4 h-4 animate-spin text-[#BE185D]"
                     viewBox="0 0 24 24"
                     fill="none"
                     aria-hidden="true"
@@ -134,7 +172,7 @@ export const LoginScreen: React.FC = () => {
                 <>
                   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                     <path
-                      fill="#FFFFFF"
+                      fill="#BE185D"
                       d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.8-5.4 3.8-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12s4.3 9.5 9.5 9.5c5.5 0 9.1-3.9 9.1-9.3 0-.6-.1-1.1-.2-1.6H12z"
                     />
                   </svg>
