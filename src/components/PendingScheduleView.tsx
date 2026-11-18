@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Edit3, Hourglass, Receipt, Sparkles, Users } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import {
@@ -46,6 +46,12 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
   const [newHour, setNewHour] = useState<number | null>(null);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [courtFilter, setCourtFilter] = useState<'all' | CourtId>('all');
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const ownBookingsMap = useMemo(() => {
     const map: Record<string, CourtBooking> = {};
@@ -56,8 +62,8 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
   }, [bookings]);
 
   const { pendingSchedules: allPendingSchedules } = useMemo(
-    () => partitionActiveSchedules(sharedSchedules, bookings, reservedSlots, uid),
-    [sharedSchedules, bookings, reservedSlots, uid]
+    () => partitionActiveSchedules(sharedSchedules, bookings, reservedSlots, uid, nowMs),
+    [sharedSchedules, bookings, reservedSlots, uid, nowMs]
   );
 
   const visiblePendingSchedules = useMemo(() => {
@@ -305,7 +311,8 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
               schedule.courtId,
               schedule.date,
               schedule.startHour,
-              schedule.bookingId
+              schedule.bookingId,
+              nowMs
             );
 
             return (

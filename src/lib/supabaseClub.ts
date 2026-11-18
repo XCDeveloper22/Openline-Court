@@ -333,7 +333,12 @@ export async function loadSupabaseClubData(
       .eq('user_id', userId)
       .order('created_at', { ascending: false }),
     supabase.from('court_slots').select('*').eq('status', 'reserved'),
-    supabase.from('court_schedules').select('*').eq('is_active', true)
+    supabase
+      .from('court_schedules')
+      .select('*')
+      .eq('is_active', true)
+      .order('date', { ascending: true })
+      .order('start_hour', { ascending: true })
   ]);
 
   if (bookingsRes.error) throw new Error(bookingsRes.error.message);
@@ -708,6 +713,34 @@ export async function supabaseRescheduleBooking(
   return { ok: true };
 }
 
+export async function supabaseBackfillSchedule(
+  booking: CourtBooking,
+  playerDisplayName: string
+): Promise<void> {
+  const { error } = await supabase.from('court_schedules').upsert(
+    {
+      schedule_id: booking.bookingId,
+      user_id: booking.ownerId,
+      booking_id: booking.bookingId,
+      player_display_name: playerDisplayName.slice(0, 80),
+      court_id: booking.courtId,
+      court_name: booking.courtName.slice(0, 80),
+      date: booking.date,
+      start_hour: booking.startHour,
+      duration_hours: booking.durationHours,
+      match_format: booking.matchFormat,
+      status: booking.status === 'current' ? 'current' : 'pending',
+      is_active: true,
+      checked_in: booking.checkedIn,
+      score_summary: (booking.scoreSummary ?? '').slice(0, 64)
+    },
+    { onConflict: 'schedule_id' }
+  );
+
+  if (error) throw new Error(error.message);
+  notifySupabaseClubListeners();
+}
+
 export async function supabaseSaveUserProfile(
   userId: string,
   profilePatch: {
@@ -732,6 +765,13 @@ export async function supabaseSaveUserProfile(
     .eq('user_id', userId);
 
   if (error) throw new Error(error.message);
+
+  // Keep player's display name updated on active court_schedules visible to other users
+  await supabase
+    .from('court_schedules')
+    .update({ player_display_name: profilePatch.displayName })
+    .eq('user_id', userId)
+    .eq('is_active', true);
 
   notifySupabaseClubListeners();
 }

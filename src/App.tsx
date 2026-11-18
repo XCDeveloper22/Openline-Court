@@ -38,6 +38,7 @@ import {
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
 import {
   loadSupabaseClubData,
+  supabaseBackfillSchedule,
   supabaseCompleteBooking,
   supabasePromoteBooking,
   subscribeSupabaseClubUpdates
@@ -286,9 +287,25 @@ export default function App() {
       void refreshFromSupabase();
     });
 
+    // Fallback polling & focus refresh so other users always see Current/Next Schedule updates even if Realtime is disabled
+    const pollId = window.setInterval(() => {
+      void refreshFromSupabase();
+    }, 10000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshFromSupabase();
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
     return () => {
       cancelled = true;
       unsub();
+      window.clearInterval(pollId);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [user, supabaseUser]);
 
@@ -425,14 +442,15 @@ export default function App() {
     };
   }, [authReady, user]);
 
-  // Backfill any existing paid/legacy active bookings into shared courtSchedules so all devices see them
+  // Backfill any existing paid active bookings into shared courtSchedules so all users & devices see Current and Next Schedules
   useEffect(() => {
-    if (!user || !sharedSchedulesReady || bookings.length === 0) return;
+    if ((!user && !supabaseUser) || !sharedSchedulesReady || bookings.length === 0) return;
 
     const displayName = (
       profile?.displayName ||
-      user.displayName ||
-      user.email?.split('@')[0] ||
+      user?.displayName ||
+      user?.email?.split('@')[0] ||
+      supabaseUser?.email?.split('@')[0] ||
       'Openline Player'
     ).slice(0, 80);
 
@@ -444,6 +462,14 @@ export default function App() {
       if (backfilledIdsRef.current.has(booking.bookingId)) return;
 
       backfilledIdsRef.current.add(booking.bookingId);
+
+      if (!user && supabaseUser) {
+        void supabaseBackfillSchedule(booking, displayName).catch(() => {
+          backfilledIdsRef.current.delete(booking.bookingId);
+        });
+        return;
+      }
+
       void setDoc(doc(db, 'courtSchedules', booking.bookingId), {
         scheduleId: booking.bookingId,
         bookingId: booking.bookingId,
@@ -466,7 +492,7 @@ export default function App() {
         handleFirestoreError(error, OperationType.CREATE, `courtSchedules/${booking.bookingId}`);
       });
     });
-  }, [user, profile, sharedSchedulesReady, bookings, sharedSchedules]);
+  }, [user, supabaseUser, profile, sharedSchedulesReady, bookings, sharedSchedules]);
 
   // Clean up any expired owned courtSlots in Firestore so past hours never block bookings
   useEffect(() => {

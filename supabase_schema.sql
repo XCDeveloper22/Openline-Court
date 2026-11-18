@@ -212,42 +212,66 @@ create policy "Users can delete own transactions"
 drop policy if exists "Authenticated users can view court slots" on public.court_slots;
 create policy "Authenticated users can view court slots"
   on public.court_slots for select
+  to authenticated
   using (auth.uid() is not null);
 
 drop policy if exists "Users can insert own court slots" on public.court_slots;
 create policy "Users can insert own court slots"
   on public.court_slots for insert
+  to authenticated
   with check (auth.uid() = user_id);
 
 drop policy if exists "Users can update own court slots" on public.court_slots;
 create policy "Users can update own court slots"
   on public.court_slots for update
+  to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 drop policy if exists "Users can delete own court slots" on public.court_slots;
 create policy "Users can delete own court slots"
   on public.court_slots for delete
+  to authenticated
   using (auth.uid() = user_id);
 
--- RLS Policies: court_schedules (authenticated players can view live club board; writes belong to owner)
+-- RLS Policies: court_schedules (all authenticated players can view Current & Next Schedules; writes belong to owner)
 drop policy if exists "Authenticated users can view court schedules" on public.court_schedules;
 create policy "Authenticated users can view court schedules"
   on public.court_schedules for select
+  to authenticated
   using (auth.uid() is not null);
 
 drop policy if exists "Users can insert own court schedules" on public.court_schedules;
 create policy "Users can insert own court schedules"
   on public.court_schedules for insert
+  to authenticated
   with check (auth.uid() = user_id);
 
 drop policy if exists "Users can update own court schedules" on public.court_schedules;
 create policy "Users can update own court schedules"
   on public.court_schedules for update
+  to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 drop policy if exists "Users can delete own court schedules" on public.court_schedules;
 create policy "Users can delete own court schedules"
   on public.court_schedules for delete
+  to authenticated
   using (auth.uid() = user_id);
+
+-- Enable Realtime broadcasts so other signed-in users see Current & Next Schedules immediately
+alter table public.court_slots replica identity full;
+alter table public.court_schedules replica identity full;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.court_slots;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.court_schedules;
+exception when duplicate_object then null;
+end $$;
