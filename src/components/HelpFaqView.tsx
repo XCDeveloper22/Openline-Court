@@ -42,7 +42,7 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'Court Usage',
     question: 'How early should we arrive and how do we check in at Soriano, Cabadbaran?',
     answer:
-      'Arrive 5 to 10 minutes before your Philippine Time slot. Show your 6-character Entry Code (OLxxxx) or Receipt from Receipts & Pay at the Watcher Check-In Desk near the Soriano Road entrance.'
+      'Arrive 5 to 10 minutes before your time slot. Show your 6-character Check-In Code (OLxxxx) or Receipt from Receipts at the Watcher Check-In Desk near the entrance.'
   },
   {
     id: 'no-cancel-resched',
@@ -50,7 +50,7 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'Court Usage',
     question: 'Can a confirmed booking be cancelled or refunded?',
     answer:
-      'No. Once paid via GCash QR, reservations are final with no cancellations or refunds. However, if your booking is still queued in Next Schedule, you may reschedule it to another open hour or update your partner names before your turn starts.'
+      'No. Once paid via GCash QR, reservations are final with no cancellations or refunds. However, if your booking is still queued in Up Next, you may reschedule it to another open hour or update your partner names before your turn starts.'
   },
   {
     id: 'paddle-rental',
@@ -58,14 +58,14 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'Court Usage',
     question: 'Are pickleball paddles and balls available if I do not bring my own?',
     answer:
-      'Yes. During Step 2 of Book Court, you can add a Paddle & Ball Kit rental for a flat ₱100 add-on. The watcher at the check-in desk will hand over your paddles when verifying your entry code.'
+      'Yes. During Step 2 of Book Court, you can rent paddles & balls for a flat ₱100 add-on. The watcher at the check-in desk will hand them over when checking you in.'
   },
   {
     id: 'gcash-steps',
     category: 'gcash-payment',
     categoryLabel: 'GCash Payment',
     question: 'How does the GCash QR payment process work?',
-    answer: `After selecting your court, date, and duration in Book Court, a GCash QR modal opens for ${GCASH_ACCOUNT.accountName} (${GCASH_ACCOUNT.accountNumber}). Scan the QR code using your GCash app, pay the exact total, then enter your 13-digit GCash Reference Number and mobile sender number to confirm immediately.`
+    answer: `After picking your court and time in Book Court, scan the GCash QR code for ${GCASH_ACCOUNT.accountName} (${GCASH_ACCOUNT.accountNumber}), pay the exact total, then enter your GCash Reference Number and mobile number to confirm right away.`
   },
   {
     id: 'unpaid-awaiting',
@@ -73,7 +73,7 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'GCash Payment',
     question: 'What happens if I close the GCash QR screen before completing payment?',
     answer:
-      'Your draft slot is saved under Pending Payment in Receipts & Pay so you can finish scanning and submitting your GCash reference without re-entering match details. Unpaid bookings do not enter Current Schedule or Next Schedule until GCash verification is submitted.'
+      'Your draft slot is saved under Awaiting GCash Payment in Receipts so you can finish paying anytime. Unpaid bookings do not enter Playing Now or Up Next until payment is confirmed.'
   },
   {
     id: 'receipt-proof',
@@ -81,31 +81,31 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'GCash Payment',
     question: 'Where do I find my Official Receipt and Check-In Code after paying?',
     answer:
-      'Open Receipts & Pay in the menu to view all paid GCash receipts, reference numbers, timestamps, and entry codes. Tap View Receipt at any time for the court watcher to verify.'
+      'Open Receipts in the menu to see all your paid GCash receipts, reference numbers, and check-in codes. Tap Show Receipt anytime for the court watcher.'
   },
   {
     id: 'current-vs-pending',
     category: 'schedule-logic',
     categoryLabel: 'Schedules',
-    question: 'How does the app decide between Current Schedule and Next Schedule?',
+    question: 'How does the app decide between Playing Now and Up Next?',
     answer:
-      'Every paid booking checks the live queue on that exact court and date. If no earlier paid bookings are ahead of your start time, your booking enters Current Schedule right away. If another match is already ahead, your booking enters Next Schedule in queue order (#2, #3, and so on).'
+      'Every paid booking checks the live queue on that court and date. If no earlier booking is ahead of your time, your session goes straight to Playing Now. If another match is ahead, your turn waits in Up Next in queue order (#2, #3, and so on).'
   },
   {
     id: 'auto-promotion',
     category: 'schedule-logic',
     categoryLabel: 'Schedules',
-    question: 'When does a Next Schedule booking move to Current Schedule?',
+    question: 'When does an Up Next booking move to Playing Now?',
     answer:
-      'Promotion is automatic across all devices. As soon as the match ahead of you finishes or expires, your booking moves from Next Schedule to Current Schedule and triggers a push + in-app alert.'
+      'Promotion is automatic across all devices. As soon as the match ahead finishes, your turn moves from Up Next to Playing Now and alerts you.'
   },
   {
     id: 'timer-accuracy',
     category: 'schedule-logic',
     categoryLabel: 'Schedules',
-    question: 'When does the Current Schedule countdown timer start and finish?',
+    question: 'When does the Playing Now countdown timer start and finish?',
     answer:
-      'Timers run strictly on Philippine Time (Asia/Manila). If you booked an 8:00 PM – 9:00 PM PHT slot early, the board counts down until start; at 8:00 PM PHT the 1-hour timer starts automatically, and at 9:00 PM PHT it automatically becomes completed and moves to Receipts & Pay.'
+      'Timers run strictly on Philippine Time (Asia/Manila). If you booked early, the card counts down until start; at your start hour the timer runs, and when finished it saves automatically to your completed matches and Receipts.'
   },
   {
     id: 'shared-visibility',
@@ -113,7 +113,7 @@ const FAQ_ITEMS: FaqItem[] = [
     categoryLabel: 'Schedules',
     question: 'Can other players see my court schedule on their phones and desktops?',
     answer:
-      'Yes. Both Current Schedule and Next Schedule sync live across desktop and mobile devices so every player at the club can see which court is occupied and which turn is next—while private GCash numbers and receipts remain visible only to you.'
+      'Yes. Both Playing Now and Up Next sync live across desktop and mobile devices so everyone can see which court is busy and who is next, while your private GCash details stay visible only to you.'
   }
 ];
 
@@ -150,7 +150,7 @@ export const HelpFaqView: React.FC = () => {
           Help &amp; FAQ
         </h1>
         <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-          Quick answers on courts, GCash QR payments, and live Philippine Time schedules.
+          Quick answers on courts, GCash payments, and live schedules.
         </p>
       </div>
 
@@ -171,20 +171,20 @@ export const HelpFaqView: React.FC = () => {
           </div>
           <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-pink-200/75 space-y-1.5">
             <span className="font-mono text-xs font-bold text-[#BE185D] tabular-nums">
-              2. Next Schedule
+              2. Up Next
             </span>
             <p className="text-sm font-semibold text-slate-900">Queued Behind Active Turn</p>
             <p className="text-xs text-slate-600 leading-relaxed">
-              If an earlier match is booked on that court, your turn waits in queue order.
+              If an earlier match is booked on that court, your turn waits in line.
             </p>
           </div>
           <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-pink-200/75 space-y-1.5">
             <span className="font-mono text-xs font-bold text-[#BE185D] tabular-nums">
-              3. Current Schedule
+              3. Playing Now
             </span>
             <p className="text-sm font-semibold text-slate-900">Auto-Promotes &amp; Alerts</p>
             <p className="text-xs text-slate-600 leading-relaxed">
-              When your turn reaches the front, it moves to Current Schedule with a 5-min alert.
+              When your turn reaches the front, it moves to Playing Now with a 5-min alert.
             </p>
           </div>
         </div>

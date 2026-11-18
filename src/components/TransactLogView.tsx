@@ -122,10 +122,10 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
     <div className="space-y-6 sm:space-y-8 2xl:space-y-10">
       <div>
         <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
-          Receipts &amp; Payments
+          Receipts
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Pay pending reservations via GCash and open your receipts for check-in.
+          Pay waiting bookings or show your receipt at check-in.
         </p>
       </div>
 

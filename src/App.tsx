@@ -565,7 +565,7 @@ export default function App() {
     'Openline Player';
 
   return (
-    <div className="min-h-dvh bg-[#FFF9FB] bg-[radial-gradient(ellipse_at_top_right,_rgba(244,114,182,0.10),_transparent_55%)] flex flex-col lg:flex-row">
+    <div className="min-h-dvh bg-[#FFF9FB] bg-[radial-gradient(ellipse_at_top_right,_rgba(244,114,182,0.08),_transparent_55%)] flex flex-col">
       <TopNav
         activeTab={activeTab}
         onSelectTab={setActiveTab}
@@ -579,8 +579,7 @@ export default function App() {
         playerPhotoUrl={profile?.photoUrl || undefined}
       />
 
-      <div className="flex-1 min-w-0 flex flex-col lg:order-1">
-        <main className="flex-1 container-4k px-4 sm:px-6 lg:px-10 2xl:px-14 pt-5 sm:pt-7 pb-[calc(2.5rem+env(safe-area-inset-bottom))] lg:py-8 2xl:py-10 space-y-6">
+      <main className="flex-1 container-4k px-4 sm:px-6 lg:px-8 pt-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] sm:py-8 space-y-6">
           {/* In-App Court Push Alerts Stack (5-min warnings & Pending -> Current alerts) */}
           {inAppAlerts.length > 0 && (
             <div className="space-y-2.5" aria-live="polite" aria-label="Court Alerts">
@@ -749,7 +748,6 @@ export default function App() {
 
           {activeTab === 'faq' && <HelpFaqView />}
         </main>
-      </div>
 
       {/* GCash QR Checkout Modal (used when paying pending items from Transact Log) */}
       <GCashPaymentModal

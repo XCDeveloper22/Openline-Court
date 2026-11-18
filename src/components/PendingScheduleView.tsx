@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Edit3, Hourglass, Receipt, Sparkles, Users } from 'lucide-react';
+import { PickleballPaddleIcon } from './PickleballIcons';
 import {
   computeCourtQueueInfo,
   COURT_HOURS,
@@ -178,10 +179,10 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
     <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
-          Next Schedule
+          Up Next
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Upcoming paid reservations in line. Turns activate automatically when the match ahead finishes.
+          Paid turns waiting in line. Courts move up automatically when the match ahead finishes.
         </p>
       </div>
 
@@ -227,12 +228,12 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
 
       {visiblePendingSchedules.length === 0 ? (
         <div className="surface-2026 rounded-3xl p-8 sm:p-10 text-center space-y-3">
-          <Hourglass className="w-8 h-8 text-pink-400 mx-auto" aria-hidden="true" />
+          <PickleballPaddleIcon className="w-8 h-8 text-[#BE185D] mx-auto" />
           <h2 className="font-display text-lg font-semibold text-slate-900">
-            No bookings waiting in Next Schedule
+            No turns waiting in line
           </h2>
           <p className="text-sm text-slate-600 max-w-md mx-auto">
-            Later bookings queued behind an active match on the same court appear here.
+            Later bookings queued behind an active match appear here.
           </p>
           {onBookCourt && (
             <div className="pt-1">

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Bell,
-  CalendarCheck2,
+  ChevronDown,
   ChevronRight,
   Clock3,
   HelpCircle,
@@ -17,6 +17,7 @@ import { CLUB_INFO, formatPhilippineClock } from '../data/courts';
 import { BrowserNotificationPermission } from '../lib/notifications';
 import { TabId } from '../types';
 import { FacebookLogo } from './FacebookLogo';
+import { PickleballLogoMark, PickleballPaddleIcon } from './PickleballIcons';
 
 interface TopNavProps {
   activeTab: TabId;
@@ -31,54 +32,25 @@ interface TopNavProps {
   playerPhotoUrl?: string;
 }
 
-const NAV_ITEMS: {
+const PRIMARY_TABS: {
   id: TabId;
-  desktopLabel: string;
-  mobileLabel: string;
+  label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  {
-    id: 'book',
-    desktopLabel: 'Book Court',
-    mobileLabel: 'Book',
-    icon: CalendarCheck2
-  },
-  {
-    id: 'current',
-    desktopLabel: 'Current Schedule',
-    mobileLabel: 'Current',
-    icon: Clock3
-  },
-  {
-    id: 'pending',
-    desktopLabel: 'Next Schedule',
-    mobileLabel: 'Next',
-    icon: Hourglass
-  },
-  {
-    id: 'transact',
-    desktopLabel: 'Receipts & Pay',
-    mobileLabel: 'Receipts',
-    icon: ReceiptText
-  },
-  {
-    id: 'map',
-    desktopLabel: 'Court Map',
-    mobileLabel: 'Map',
-    icon: MapIcon
-  },
-  {
-    id: 'profile',
-    desktopLabel: 'Profile',
-    mobileLabel: 'Profile',
-    icon: User
-  },
-  {
-    id: 'faq',
-    desktopLabel: 'Help & FAQ',
-    mobileLabel: 'FAQ',
-    icon: HelpCircle
-  }
+  { id: 'book', label: 'Book Court', icon: PickleballPaddleIcon },
+  { id: 'current', label: 'Playing Now', icon: Clock3 },
+  { id: 'pending', label: 'Up Next', icon: Hourglass },
+  { id: 'transact', label: 'Receipts', icon: ReceiptText }
+];
+
+const SECONDARY_ITEMS: {
+  id: TabId;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: 'map', label: 'Court Map', icon: MapIcon },
+  { id: 'profile', label: 'My Profile', icon: User },
+  { id: 'faq', label: 'Help & FAQ', icon: HelpCircle }
 ];
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -94,8 +66,10 @@ export const TopNav: React.FC<TopNavProps> = ({
   playerPhotoUrl
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [phtClock, setPhtClock] = useState(() => formatPhilippineClock());
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -104,18 +78,38 @@ export const TopNav: React.FC<TopNavProps> = ({
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuOpen]);
+
   const getCountText = (id: TabId): string | null => {
     if (id === 'current' && currentCount > 0) return String(currentCount);
     if (id === 'pending' && pendingCount > 0) return String(pendingCount);
-    if (id === 'transact' && unpaidCount > 0) return `${unpaidCount} due`;
+    if (id === 'transact' && unpaidCount > 0) return `${unpaidCount}`;
     return null;
   };
 
   const handleChooseTab = (tab: TabId) => {
     onSelectTab(tab);
     setDrawerOpen(false);
+    setMenuOpen(false);
   };
 
+  const firstName = playerName.trim().split(' ')[0] || 'Player';
   const initials = (playerName || 'O')
     .split(' ')
     .filter(Boolean)
@@ -123,47 +117,33 @@ export const TopNav: React.FC<TopNavProps> = ({
     .map((p) => p[0]?.toUpperCase() ?? '')
     .join('');
 
+  const isSecondaryActive = activeTab === 'map' || activeTab === 'profile' || activeTab === 'faq';
+
   return (
     <>
-      {/* Desktop Sticky Right Sidebar */}
-      <aside
-        aria-label="Desktop Navigation"
-        className="hidden lg:flex lg:order-2 lg:flex-col lg:justify-between lg:w-68 xl:w-72 lg:sticky lg:top-0 lg:h-dvh bg-white border-l border-pink-200/75 shrink-0 z-30 overflow-y-auto"
-      >
-        <div className="p-5 space-y-6">
-          {/* Brand Header */}
+      {/* Desktop Simple Top Navigation Bar */}
+      <header className="hidden lg:block sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-pink-200/80">
+        <div className="container-4k px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          {/* Left: Clean Brand Mark */}
           <button
             type="button"
             onClick={() => handleChooseTab('book')}
-            className="w-full text-left flex items-center gap-3 group cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D] rounded-xl"
+            className="flex items-center gap-2.5 group cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D] shrink-0"
           >
             <div className="w-9 h-9 rounded-xl bg-[#BE185D] text-white flex items-center justify-center shrink-0">
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                shapeRendering="geometricPrecision"
-                fill="none"
-                aria-hidden="true"
-              >
-                <rect x="3" y="5" width="18" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
-                <line x1="12" y1="5" x2="12" y2="19" stroke="#FBCFE8" strokeWidth="1.75" />
-                <line x1="8" y1="5" x2="8" y2="19" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.65" />
-                <line x1="16" y1="5" x2="16" y2="19" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.65" />
-              </svg>
+              <PickleballLogoMark className="w-5 h-5" />
             </div>
-            <div className="min-w-0">
-              <p className="font-display text-base font-bold tracking-tight text-[#831843] truncate group-hover:text-[#BE185D] transition-colors">
-                {CLUB_INFO.name}
-              </p>
-              <p className="font-mono text-[11px] text-slate-500 tabular-nums truncate">
-                PHT · {phtClock}
-              </p>
-            </div>
+            <span className="font-display text-base font-bold tracking-tight text-[#831843] group-hover:text-[#BE185D] transition-colors">
+              {CLUB_INFO.name}
+            </span>
           </button>
 
-          {/* Primary Feature Navigation */}
-          <nav className="space-y-1" aria-label="Main Navigation">
-            {NAV_ITEMS.map((item) => {
+          {/* Center: Just 4 Clear Primary Actions */}
+          <nav
+            aria-label="Main Navigation"
+            className="flex items-center gap-1 p-1 rounded-2xl bg-[#FFF6F9] border border-pink-200/75"
+          >
+            {PRIMARY_TABS.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               const countText = getCountText(item.id);
@@ -173,25 +153,24 @@ export const TopNav: React.FC<TopNavProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleChooseTab(item.id)}
-                  className={`w-full min-h-[44px] px-3 py-2 rounded-xl text-left flex items-center justify-between gap-3 transition-colors duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D] ${
+                  className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-[#BE185D] text-white'
-                      : 'text-slate-700 hover:bg-pink-50 hover:text-[#831843]'
+                      ? 'bg-[#BE185D] text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-white hover:text-[#831843]'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#BE185D]'}`}
-                      aria-hidden="true"
-                    />
-                    <span className="font-display text-sm font-medium truncate">
-                      {item.desktopLabel}
-                    </span>
-                  </div>
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#BE185D]'}`}
+                  />
+                  <span>{item.label}</span>
                   {countText && (
                     <span
-                      className={`font-mono text-xs font-semibold tabular-nums shrink-0 ${
-                        isActive ? 'text-white' : 'text-[#BE185D]'
+                      className={`font-mono text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded-md ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : item.id === 'transact'
+                            ? 'bg-amber-100 text-amber-900'
+                            : 'bg-pink-100 text-[#831843]'
                       }`}
                     >
                       {countText}
@@ -201,89 +180,135 @@ export const TopNav: React.FC<TopNavProps> = ({
               );
             })}
           </nav>
-        </div>
 
-        {/* Bottom Player, Venue & Sign Out */}
-        <div className="p-5 pt-4 border-t border-pink-100 space-y-3 bg-[#FFF9FB]">
-          <button
-            type="button"
-            onClick={() => handleChooseTab('profile')}
-            className="w-full flex items-center gap-2.5 text-left rounded-xl hover:bg-pink-50 p-1.5 -m-1.5 transition-colors cursor-pointer"
-          >
-            {playerPhotoUrl && !avatarFailed ? (
-              <img
-                src={playerPhotoUrl}
-                alt={playerName}
-                referrerPolicy="no-referrer"
-                onError={() => setAvatarFailed(true)}
-                className="w-8 h-8 rounded-lg object-cover border border-pink-200 shrink-0"
+          {/* Right: Single Friendly Account & More Menu */}
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Account and more pages"
+              className={`min-h-[40px] pl-1.5 pr-3 py-1 rounded-xl border inline-flex items-center gap-2 transition-colors cursor-pointer ${
+                menuOpen || isSecondaryActive
+                  ? 'bg-pink-50 border-[#BE185D] text-[#831843]'
+                  : 'bg-white border-pink-200/80 text-slate-800 hover:bg-pink-50'
+              }`}
+            >
+              {playerPhotoUrl && !avatarFailed ? (
+                <img
+                  src={playerPhotoUrl}
+                  alt={playerName}
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarFailed(true)}
+                  className="w-7 h-7 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <span className="w-7 h-7 rounded-lg bg-[#BE185D] text-white font-display text-xs font-bold flex items-center justify-center shrink-0">
+                  {initials}
+                </span>
+              )}
+              <span className="text-xs font-semibold max-w-[100px] truncate">{firstName}</span>
+              <ChevronDown
+                className={`w-4 h-4 text-[#BE185D] transition-transform ${
+                  menuOpen ? 'rotate-180' : ''
+                }`}
+                aria-hidden="true"
               />
-            ) : (
-              <div className="w-8 h-8 rounded-lg bg-[#BE185D] text-white font-display text-xs font-bold flex items-center justify-center shrink-0">
-                {initials}
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-pink-200 shadow-lg p-2 space-y-1 z-50"
+              >
+                <div className="px-3 py-2 border-b border-pink-100 mb-1">
+                  <p className="text-xs font-semibold text-slate-900 truncate">{playerName}</p>
+                  <p className="font-mono text-[11px] text-slate-500 tabular-nums">
+                    PHT · {phtClock}
+                  </p>
+                </div>
+
+                {SECONDARY_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const active = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleChooseTab(item.id)}
+                      className={`w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-[#BE185D] text-white'
+                          : 'text-slate-700 hover:bg-pink-50 hover:text-[#831843]'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-[#BE185D]'}`}
+                      />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+
+                {notificationPermission === 'default' && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEnableNotifications();
+                    }}
+                    className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-[#831843] hover:bg-pink-50 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Bell className="w-4 h-4 text-[#BE185D] shrink-0" aria-hidden="true" />
+                    <span>Turn On Court Alerts</span>
+                  </button>
+                )}
+
+                <a
+                  href={CLUB_INFO.facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-[#831843] hover:bg-pink-50 flex items-center gap-2.5"
+                >
+                  <FacebookLogo className="w-4 h-4 shrink-0" />
+                  <span>@openlinecourt</span>
+                </a>
+
+                <div className="pt-1 mt-1 border-t border-pink-100">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onSignOut();
+                    }}
+                    className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-red-700 hover:bg-red-50 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
               </div>
             )}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-900 truncate">{playerName}</p>
-              <p className="text-[11px] text-slate-500 truncate">Soriano, Cabadbaran</p>
-            </div>
-          </button>
-
-          {notificationPermission === 'default' && (
-            <button
-              type="button"
-              onClick={onEnableNotifications}
-              className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white border border-pink-200 hover:bg-pink-50 text-xs font-medium text-[#831843] inline-flex items-center justify-center gap-2 cursor-pointer transition-colors"
-            >
-              <Bell className="w-3.5 h-3.5 text-[#BE185D]" aria-hidden="true" />
-              <span>Enable Alerts</span>
-            </button>
-          )}
-
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <a
-              href={CLUB_INFO.facebookUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Openline Court Facebook Page"
-              className="min-h-[38px] px-2 py-1.5 rounded-xl hover:bg-pink-50 inline-flex items-center gap-1.5 text-xs font-semibold text-[#831843] transition-colors truncate"
-            >
-              <FacebookLogo className="w-4 h-4 shrink-0" />
-              <span className="truncate">@openlinecourt</span>
-            </a>
-
-            <button
-              type="button"
-              onClick={onSignOut}
-              aria-label="Sign Out"
-              className="min-h-[38px] px-3 py-1.5 text-xs font-medium text-[#831843] bg-pink-50 hover:bg-pink-100 rounded-xl inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span>Sign Out</span>
-            </button>
           </div>
         </div>
-      </aside>
+      </header>
 
       {/* Mobile Compact Header Bar (< lg) */}
-      <header className="lg:hidden sticky top-0 z-30 bg-white/92 backdrop-blur-xl border-b border-pink-200/75">
+      <header className="lg:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-pink-200/80">
         <div className="px-4 h-14 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => handleChooseTab('book')}
-            className="font-display text-base font-bold tracking-tight text-[#831843] whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2"
+            className="font-display text-base font-bold tracking-tight text-[#831843] whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2.5"
           >
-            <span className="w-7 h-7 rounded-lg bg-[#BE185D] text-white inline-flex items-center justify-center shrink-0">
-              <svg
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                shapeRendering="geometricPrecision"
-                fill="none"
-                aria-hidden="true"
-              >
-                <rect x="3" y="5" width="18" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
-                <line x1="12" y1="5" x2="12" y2="19" stroke="#FBCFE8" strokeWidth="1.75" />
-              </svg>
+            <span className="w-8 h-8 rounded-xl bg-[#BE185D] text-white inline-flex items-center justify-center shrink-0">
+              <PickleballLogoMark className="w-4.5 h-4.5" />
             </span>
             <span>{CLUB_INFO.name}</span>
           </button>
@@ -293,7 +318,7 @@ export const TopNav: React.FC<TopNavProps> = ({
             onClick={() => setDrawerOpen(true)}
             aria-label="Open navigation menu"
             aria-expanded={drawerOpen}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-3 py-2 text-xs font-semibold text-[#831843] bg-pink-50 hover:bg-pink-100 border border-pink-200/80 rounded-xl whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 text-xs font-semibold text-[#831843] bg-pink-50 hover:bg-pink-100 border border-pink-200/80 rounded-xl whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Menu className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>Menu</span>
@@ -318,13 +343,18 @@ export const TopNav: React.FC<TopNavProps> = ({
           <aside className="w-[86%] max-w-sm h-full bg-white border-l border-pink-200 flex flex-col justify-between overflow-y-auto">
             <div>
               <div className="px-5 py-4 border-b border-pink-100 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-display text-base font-bold text-[#831843]">
-                    Openline Court Menu
-                  </p>
-                  <p className="font-mono text-[11px] text-slate-500 tabular-nums">
-                    PHT · {phtClock}
-                  </p>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-8 h-8 rounded-xl bg-[#BE185D] text-white inline-flex items-center justify-center shrink-0">
+                    <PickleballLogoMark className="w-4.5 h-4.5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-display text-sm font-bold text-[#831843] truncate">
+                      {playerName}
+                    </p>
+                    <p className="font-mono text-[11px] text-slate-500 tabular-nums">
+                      PHT · {phtClock}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -336,49 +366,90 @@ export const TopNav: React.FC<TopNavProps> = ({
                 </button>
               </div>
 
-              <div className="p-4 space-y-1.5">
-                {NAV_ITEMS.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-                  const countText = getCountText(item.id);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleChooseTab(item.id)}
-                      className={`w-full min-h-[48px] px-4 py-3 rounded-xl text-left flex items-center justify-between gap-3 transition-colors cursor-pointer ${
-                        isActive
-                          ? 'bg-[#BE185D] text-white'
-                          : 'bg-white border border-pink-200/70 text-slate-800 hover:bg-pink-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Icon
-                          className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#BE185D]'}`}
+              <div className="p-4 space-y-5">
+                <div className="space-y-1.5">
+                  <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Play &amp; Schedules
+                  </p>
+                  {PRIMARY_TABS.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    const countText = getCountText(item.id);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleChooseTab(item.id)}
+                        className={`w-full min-h-[48px] px-4 py-3 rounded-xl text-left flex items-center justify-between gap-3 transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-[#BE185D] text-white'
+                            : 'bg-white border border-pink-200/70 text-slate-800 hover:bg-pink-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon
+                            className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#BE185D]'}`}
+                          />
+                          <span className="font-display text-sm font-semibold truncate">
+                            {item.label}
+                            {countText ? (
+                              <span
+                                className={`ml-1.5 font-mono text-xs tabular-nums ${
+                                  isActive ? 'text-pink-100' : 'text-[#BE185D]'
+                                }`}
+                              >
+                                ({countText})
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
+                        <ChevronRight
+                          className={`w-4 h-4 shrink-0 ${
+                            isActive ? 'text-white' : 'text-slate-400'
+                          }`}
                           aria-hidden="true"
                         />
-                        <span className="font-display text-sm font-semibold truncate">
-                          {item.desktopLabel}
-                          {countText ? (
-                            <span
-                              className={`ml-1.5 font-mono text-xs tabular-nums ${
-                                isActive ? 'text-pink-100' : 'text-[#BE185D]'
-                              }`}
-                            >
-                              ({countText})
-                            </span>
-                          ) : null}
-                        </span>
-                      </div>
-                      <ChevronRight
-                        className={`w-4 h-4 shrink-0 ${
-                          isActive ? 'text-white' : 'text-slate-400'
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Club &amp; Account
+                  </p>
+                  {SECONDARY_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleChooseTab(item.id)}
+                        className={`w-full min-h-[46px] px-4 py-2.5 rounded-xl text-left flex items-center justify-between gap-3 transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-[#BE185D] text-white'
+                            : 'bg-[#FFF9FB] border border-pink-200/60 text-slate-800 hover:bg-pink-50'
                         }`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  );
-                })}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon
+                            className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#BE185D]'}`}
+                          />
+                          <span className="font-display text-sm font-semibold truncate">
+                            {item.label}
+                          </span>
+                        </div>
+                        <ChevronRight
+                          className={`w-4 h-4 shrink-0 ${
+                            isActive ? 'text-white' : 'text-slate-400'
+                          }`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -393,7 +464,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                   className="w-full min-h-[42px] px-4 py-2 rounded-xl bg-white border border-pink-200 hover:bg-pink-50 text-xs font-semibold text-[#831843] inline-flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Bell className="w-4 h-4 text-[#BE185D]" aria-hidden="true" />
-                  <span>Enable Court Alerts</span>
+                  <span>Turn On Court Alerts</span>
                 </button>
               )}
 

@@ -48,6 +48,7 @@ import {
   TabId
 } from '../types';
 import { GCashQRCode } from './GCashQRCode';
+import { PickleballBallIcon, PickleballPaddleIcon } from './PickleballIcons';
 
 type BookingFlowStep = 'court' | 'schedule' | 'qr' | 'done';
 
@@ -69,10 +70,10 @@ const STEP_LABELS: {
   shortLabel: string;
   fullLabel: string;
 }[] = [
-  { id: 'court', num: 1, shortLabel: 'Court', fullLabel: 'Court' },
-  { id: 'schedule', num: 2, shortLabel: 'Date', fullLabel: 'Date & Time' },
-  { id: 'qr', num: 3, shortLabel: 'QR', fullLabel: 'QR Pay' },
-  { id: 'done', num: 4, shortLabel: 'Done', fullLabel: 'Done' }
+  { id: 'court', num: 1, shortLabel: 'Court', fullLabel: 'Pick Court' },
+  { id: 'schedule', num: 2, shortLabel: 'Time', fullLabel: 'Pick Time' },
+  { id: 'qr', num: 3, shortLabel: 'Pay', fullLabel: 'Pay GCash' },
+  { id: 'done', num: 4, shortLabel: 'Done', fullLabel: 'All Set' }
 ];
 
 export const BookCourtView: React.FC<BookCourtViewProps> = ({
@@ -134,14 +135,6 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
     });
     return map;
   }, [dateSlots]);
-
-  const scheduleByBookingId = useMemo(() => {
-    const map: Record<string, CourtSchedule> = {};
-    sharedSchedules.forEach((sch) => {
-      map[sch.bookingId] = sch;
-    });
-    return map;
-  }, [sharedSchedules]);
 
   const selectedCourt = getCourtById(selectedCourtId);
   const isToday = selectedDate === upcomingDates[0].iso;
@@ -451,7 +444,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
             Book a Court
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Choose a court, pick your date and time, then pay via GCash QR.
+            Pick a court, choose your time, and pay with GCash.
           </p>
         </div>
 
@@ -534,11 +527,17 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       {/* STEP 1: CLICK A COURT */}
       {flowStep === 'court' && (
         <section aria-label="Step 1: Choose Pickleball Court" className="space-y-4">
-          <h2 className="font-display text-base sm:text-lg font-semibold text-slate-900">
-            1. Choose a Court
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-base sm:text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <PickleballPaddleIcon className="w-5 h-5 text-[#BE185D]" />
+              <span>Pick a court to play</span>
+            </h2>
+            <span className="font-mono text-xs text-slate-500 tabular-nums">
+              Open 7 AM – 10 PM
+            </span>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 2xl:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
             {COURTS.map((court) => {
               const activeToday = sharedSchedules.filter(
                 (s) => s.courtId === court.id && s.date === upcomingDates[0].iso && s.isActive
@@ -551,7 +550,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                   onClick={() => handleSelectCourtAndContinue(court.id)}
                   className="surface-2026 group text-left hover:border-[#BE185D] hover:-translate-y-0.5 rounded-3xl overflow-hidden transition-all duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BE185D]"
                 >
-                  <div className="aspect-[16/10] w-full bg-pink-50 relative overflow-hidden">
+                  <div className="aspect-[16/9] w-full bg-pink-50 relative overflow-hidden">
                     {!failedImages[court.id] ? (
                       <img
                         src={court.image}
@@ -572,7 +571,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                       className="absolute inset-0 bg-gradient-to-t from-[#500724]/85 via-[#500724]/20 to-transparent"
                       aria-hidden="true"
                     />
-                    <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 flex items-end justify-between gap-3 text-white">
+                    <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end justify-between gap-3 text-white">
                       <div className="min-w-0">
                         <h3 className="font-display text-xl sm:text-2xl font-bold tracking-tight truncate">
                           {court.name}
@@ -587,25 +586,23 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-5 sm:p-6 space-y-4">
-                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-2">
-                      {court.description}
-                    </p>
-                    <div className="pt-3 border-t border-pink-100 flex items-center justify-between gap-2">
-                      <span
-                        className={`text-xs font-semibold ${
-                          activeToday.length === 0 ? 'text-emerald-700' : 'text-[#BE185D]'
-                        }`}
-                      >
+                  <div className="px-5 py-4 flex items-center justify-between gap-2 bg-white">
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+                        activeToday.length === 0 ? 'text-emerald-700' : 'text-[#BE185D]'
+                      }`}
+                    >
+                      <PickleballBallIcon className="w-4 h-4 shrink-0" />
+                      <span>
                         {activeToday.length === 0
-                          ? 'Open today · First in line'
-                          : `${activeToday.length} scheduled today`}
+                          ? 'Open today'
+                          : `${activeToday.length} booked today`}
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#BE185D] group-hover:translate-x-0.5 transition-transform">
-                        <span>Pick Date &amp; Time</span>
-                        <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                      </span>
-                    </div>
+                    </span>
+                    <span className="px-3.5 py-2 rounded-xl bg-pink-50 group-hover:bg-[#BE185D] text-[#831843] group-hover:text-white inline-flex items-center gap-1.5 text-xs font-semibold transition-colors">
+                      <span>Select Court</span>
+                      <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                    </span>
                   </div>
                 </button>
               );
@@ -734,9 +731,6 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                       selectedHour !== null && durationHours === 2 && hour === selectedHour + 1;
                     const existingSlot = slotMap[makeSlotKey(selectedCourtId, selectedDate, hour)];
                     const slotTaken = Boolean(existingSlot);
-                    const bookedBy = existingSlot
-                      ? scheduleByBookingId[existingSlot.bookingId]?.playerDisplayName
-                      : undefined;
                     const pastHour = isToday && hour < currentHourNow;
 
                     return (
@@ -772,13 +766,11 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                             : isSecondCovered
                               ? '2nd Hour'
                               : slotTaken
-                                ? bookedBy
-                                  ? `Booked · ${bookedBy.split(' ')[0]}`
-                                  : 'Booked'
+                                ? 'Taken'
                                 : pastHour
                                   ? 'Past'
                                   : durationHours === 2 && hour >= 21
-                                    ? '1h max'
+                                    ? '1 hr left'
                                     : 'Open'}
                         </span>
                       </button>
@@ -789,13 +781,13 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
             </div>
 
             {/* Right Column: Sticky Summary & Continue to QR */}
-            <div className="lg:col-span-4 lg:border-l lg:border-pink-100 lg:pl-8 lg:sticky lg:top-8 space-y-5">
+            <div className="lg:col-span-4 lg:border-l lg:border-pink-100 lg:pl-8 lg:sticky lg:top-24 space-y-5">
               <h3 className="font-display text-base sm:text-lg font-semibold text-slate-900">
-                Match Details &amp; Summary
+                Your Booking
               </h3>
 
               <div>
-                <span className="block text-sm font-medium text-slate-700">Match Format</span>
+                <span className="block text-sm font-medium text-slate-700">Play Type</span>
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5 p-1 bg-pink-50 border border-pink-200/60 rounded-xl">
                   {(['singles', 'doubles', 'drills'] as MatchFormat[]).map((fmt) => (
                     <button
@@ -808,7 +800,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      {fmt === 'singles' ? 'Singles' : fmt === 'doubles' ? 'Doubles' : 'Drills'}
+                      {fmt === 'singles' ? 'Singles' : fmt === 'doubles' ? 'Doubles' : 'Practice'}
                     </button>
                   ))}
                 </div>
@@ -816,13 +808,13 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
 
               <div>
                 <label htmlFor="partner-names" className="block text-sm font-medium text-slate-700">
-                  Players / Partners (Optional)
+                  Who&apos;s playing? (optional)
                 </label>
                 <input
                   id="partner-names"
                   type="text"
                   maxLength={120}
-                  placeholder="e.g. Marco R., Bea T."
+                  placeholder="e.g. Marco, Bea"
                   value={partnerNames}
                   onChange={(e) => setPartnerNames(e.target.value)}
                   className="mt-1.5 w-full min-h-[44px] px-3.5 py-2.5 text-sm text-slate-900 bg-white border border-pink-200 rounded-xl focus:outline-none focus:border-[#BE185D]"
@@ -837,7 +829,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                   className="mt-0.5 h-5 w-5 accent-[#BE185D]"
                 />
                 <span className="text-sm text-slate-700">
-                  Add Carbon Paddle &amp; Pro Balls{' '}
+                  Rent paddles &amp; balls{' '}
                   <span className="font-mono text-xs text-[#831843] tabular-nums">
                     (+₱{PADDLE_RENTAL_FEE})
                   </span>
@@ -854,14 +846,13 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
                 >
                   {selectedQueueInfo.aheadCount === 0 ? (
                     <p>
-                      <strong>First on this court:</strong> After QR payment, your session starts in{' '}
-                      <strong>Current Schedule</strong> with a live countdown timer.
+                      <strong>Ready right away:</strong> After paying, your session goes straight to{' '}
+                      <strong>Playing Now</strong>.
                     </p>
                   ) : (
                     <p>
-                      <strong>Next in Line (Queue #{selectedQueueInfo.queueNumber}):</strong>{' '}
-                      {selectedQueueInfo.aheadCount} booking ahead on {selectedCourt.name}. After QR
-                      payment, your turn waits in <strong>Next Schedule</strong>.
+                      <strong>#{selectedQueueInfo.queueNumber} in line:</strong> After paying, your
+                      turn waits in <strong>Up Next</strong> and alerts you when ready.
                     </p>
                   )}
                 </div>
@@ -1075,20 +1066,20 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-[#BE185D]">Step 4 · Done</p>
+            <p className="text-xs font-semibold text-[#BE185D]">All Set</p>
             <h2 className="font-display text-2xl sm:text-3xl font-semibold text-slate-900">
-              Payment Complete · Schedule Confirmed!
+              You&apos;re Booked!
             </h2>
             <p className="text-sm text-slate-600">
               {completedBooking.status === 'current'
-                ? 'You are first on this court! Your session is now live in Current Schedule with a countdown timer.'
-                : 'Your court reservation is queued in Next Schedule. Wait for the turn ahead to finish.'}
+                ? 'Your court is ready now in Playing Now.'
+                : 'Your turn is saved in Up Next and will notify you when ready.'}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 p-4 bg-pink-50/70 border border-pink-200/80 rounded-xl text-left">
             <div>
-              <p className="text-xs text-pink-900/70">Court Entry Code</p>
+              <p className="text-xs text-pink-900/70">Check-In Code</p>
               <p className="mt-1 font-mono text-2xl font-bold text-[#831843] tabular-nums">
                 {completedBooking.checkInCode}
               </p>
@@ -1112,14 +1103,6 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
             </p>
           </div>
 
-          <p className="text-xs text-slate-500">
-            View your turn in{' '}
-            <strong className="text-[#831843]">
-              {completedBooking.status === 'current' ? 'Current Schedule' : 'Next Schedule'}
-            </strong>{' '}
-            or check your receipt in <strong className="text-[#831843]">Receipts &amp; Pay</strong>.
-          </p>
-
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             {onNavigateTab && (
               <button
@@ -1131,8 +1114,8 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
               >
                 <span>
                   {completedBooking.status === 'current'
-                    ? 'View Current Schedule'
-                    : 'View Next Schedule'}
+                    ? 'Go to Playing Now'
+                    : 'Go to Up Next'}
                 </span>
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </button>

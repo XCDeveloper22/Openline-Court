@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { PickleballLogoMark } from './PickleballIcons';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -100,60 +101,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           </svg>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <svg
-              className="w-7 h-7 sm:w-8 sm:h-8 text-white"
-              viewBox="0 0 28 28"
-              shapeRendering="geometricPrecision"
-              fill="none"
-              aria-hidden="true"
-            >
-              <rect
-                x="3"
-                y="5"
-                width="22"
-                height="18"
-                rx="2"
-                stroke="currentColor"
-                strokeWidth="1.75"
-              />
-              <line x1="14" y1="5" x2="14" y2="23" stroke="#F472B6" strokeWidth="1.75" />
-              <line
-                x1="9"
-                y1="5"
-                x2="9"
-                y2="23"
-                stroke="currentColor"
-                strokeWidth="1.25"
-                strokeOpacity="0.65"
-              />
-              <line
-                x1="19"
-                y1="5"
-                x2="19"
-                y2="23"
-                stroke="currentColor"
-                strokeWidth="1.25"
-                strokeOpacity="0.65"
-              />
-              <line
-                x1="3"
-                y1="14"
-                x2="9"
-                y2="14"
-                stroke="currentColor"
-                strokeWidth="1.25"
-                strokeOpacity="0.65"
-              />
-              <line
-                x1="19"
-                y1="14"
-                x2="25"
-                y2="14"
-                stroke="currentColor"
-                strokeWidth="1.25"
-                strokeOpacity="0.65"
-              />
-            </svg>
+            <PickleballLogoMark className="w-8 h-8 sm:w-9 sm:h-9 text-white" />
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCircle2, Clock3, Receipt, Trophy, Users } from 'lucide-react';
+import { Check, CheckCircle2, Receipt, Trophy, Users } from 'lucide-react';
+import { CourtLinesBackdrop, PickleballBallIcon } from './PickleballIcons';
 import {
   COURTS,
   formatCurrency,
@@ -128,10 +129,10 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-display text-[clamp(1.45rem,2.5vw,2.1rem)] font-semibold tracking-tight text-slate-900">
-            Current Schedule
+            Playing Now
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Live court sessions and countdown timers in Philippine Time.
+            See who is on Court 1 and Court 2 right now.
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl surface-2026 flex items-center justify-between sm:justify-start gap-2.5 shrink-0">
@@ -172,16 +173,22 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
           return (
             <div
               key={court.id}
-              className={`rounded-3xl p-4 sm:p-5 2xl:p-6 flex flex-col justify-between gap-3 min-w-0 transition-colors ${
+              className={`relative overflow-hidden rounded-3xl p-4 sm:p-5 flex flex-col justify-between gap-3 min-w-0 transition-colors ${
                 activeNow && isMine
                   ? 'bg-pink-50/90 border-2 border-[#BE185D]'
                   : 'surface-2026'
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <CourtLinesBackdrop className="pointer-events-none absolute -right-8 -bottom-6 w-48 h-24 text-[#BE185D] opacity-[0.04]" />
+              <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="font-display text-sm sm:text-base font-semibold text-slate-900 truncate">
-                    {court.name}
+                  <h2 className="font-display text-sm sm:text-base font-semibold text-slate-900 truncate flex items-center gap-2">
+                    <PickleballBallIcon
+                      className={`w-4 h-4 shrink-0 ${
+                        activeNow ? 'text-[#BE185D]' : 'text-emerald-600'
+                      }`}
+                    />
+                    <span className="truncate">{court.name}</span>
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500 truncate">
                     {court.environment} · ₱{court.hourlyRate}/hr
@@ -278,12 +285,12 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
 
       {visibleCurrentSchedules.length === 0 ? (
         <div className="surface-2026 rounded-3xl p-8 sm:p-10 text-center space-y-3">
-          <Clock3 className="w-8 h-8 text-pink-400 mx-auto" aria-hidden="true" />
+          <PickleballBallIcon className="w-8 h-8 text-[#BE185D] mx-auto" />
           <h2 className="font-display text-lg font-semibold text-slate-900">
-            No active schedule on {courtFilter === 'all' ? 'either court' : 'this court'} right now
+            No one is on {courtFilter === 'all' ? 'the courts' : 'this court'} right now
           </h2>
           <p className="text-sm text-slate-600 max-w-md mx-auto">
-            Pick a court and time slot to start a session right away.
+            Grab an open slot and start playing today.
           </p>
           {onBookCourt && (
             <div className="pt-1">
