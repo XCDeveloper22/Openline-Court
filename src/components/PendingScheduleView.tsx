@@ -17,7 +17,7 @@ import {
   partitionActiveSchedules
 } from '../data/courts';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { localRescheduleBooking, localUpdateBookingPartners } from '../lib/localClubStore';
+import { supabaseRescheduleBooking, supabaseUpdateBookingPartners } from '../lib/supabaseClub';
 import { CourtBooking, CourtId, CourtSchedule, CourtSlot } from '../types';
 
 interface PendingScheduleViewProps {
@@ -78,7 +78,7 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
     try {
       const cleanPartners = partnersDraft.trim().slice(0, 120);
       if (!auth.currentUser) {
-        localUpdateBookingPartners(booking.bookingId, cleanPartners);
+        await supabaseUpdateBookingPartners(booking.bookingId, cleanPartners, uid);
         setEditingPartnersId(null);
         return;
       }
@@ -146,12 +146,13 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
           status: 'reserved',
           createdAt: new Date().toISOString()
         }));
-        const res = localRescheduleBooking(
+        const res = await supabaseRescheduleBooking(
           booking.bookingId,
           newDate,
           newHour,
           oldKeys,
-          newSlots
+          newSlots,
+          uid
         );
         if (!res.ok) {
           setRescheduleError('Selected slot was taken. Please pick another open hour.');
@@ -206,7 +207,9 @@ export const PendingScheduleView: React.FC<PendingScheduleViewProps> = ({
       setNewHour(null);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.toLowerCase().includes('permission')) {
+      if (!auth.currentUser) {
+        setRescheduleError(msg || 'Unable to reschedule booking in Supabase.');
+      } else if (msg.toLowerCase().includes('permission')) {
         setRescheduleError('Selected slot was taken. Please pick another open hour.');
       } else {
         handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);

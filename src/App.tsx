@@ -37,11 +37,11 @@ import {
 } from './data/courts';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
 import {
-  getLocalClubSnapshot,
-  localCompleteBooking,
-  localPromoteBooking,
-  subscribeLocalClubStore
-} from './lib/localClubStore';
+  loadSupabaseClubData,
+  supabaseCompleteBooking,
+  supabasePromoteBooking,
+  subscribeSupabaseClubUpdates
+} from './lib/supabaseClub';
 import { supabase } from './supabaseClient.js';
 import {
   BrowserNotificationPermission,
@@ -226,23 +226,70 @@ export default function App() {
   useEffect(() => {
     if (user || !supabaseUser) return;
 
-    const syncFromStore = () => {
-      const snap = getLocalClubSnapshot(supabaseUser.id, supabaseUser.email ?? '');
-      setProfile(snap.profile);
-      setPrivateInfo(snap.privateInfo);
-      setBookings(snap.bookings);
-      setTransactions(snap.transactions);
-      setReservedSlots(snap.reservedSlots);
-      setSharedSchedules(snap.sharedSchedules);
-      setBookingsLoading(false);
-      setSlotsReady(true);
-      setSharedSchedulesReady(true);
+    let cancelled = false;
+
+    const refreshFromSupabase = async () => {
+      try {
+        const meta = supabaseUser.user_metadata as Record<string, unknown> | undefined;
+        const fallbackName =
+          typeof meta?.full_name === 'string'
+            ? meta.full_name
+            : typeof meta?.name === 'string'
+              ? meta.name
+              : undefined;
+        const fallbackAvatar =
+          typeof meta?.avatar_url === 'string' ? meta.avatar_url : undefined;
+
+        const snap = await loadSupabaseClubData(
+          supabaseUser.id,
+          supabaseUser.email ?? '',
+          fallbackName,
+          fallbackAvatar
+        );
+        if (cancelled) return;
+        setProfile(snap.profile);
+        setPrivateInfo(snap.privateInfo);
+        setBookings(snap.bookings);
+        setTransactions(snap.transactions);
+        setReservedSlots(snap.reservedSlots);
+        setSharedSchedules(snap.sharedSchedules);
+        setBookingsLoading(false);
+        setSlotsReady(true);
+        setSharedSchedulesReady(true);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Unable to load Supabase data.';
+        setBookingsLoading(false);
+        setSlotsReady(true);
+        setSharedSchedulesReady(true);
+        setInAppAlerts((prev) => {
+          const id = 'supabase-load-error';
+          if (prev.some((a) => a.id === id)) return prev;
+          return [
+            {
+              id,
+              title: 'Supabase Database Sync Notice',
+              body: message
+            },
+            ...prev
+          ].slice(0, 3);
+        });
+      }
     };
 
     notifiedKeysRef.current = readNotifiedKeys(supabaseUser.id);
     setNotificationPermission(getNotificationPermission());
-    syncFromStore();
-    return subscribeLocalClubStore(syncFromStore);
+    setBookingsLoading(true);
+    void refreshFromSupabase();
+
+    const unsub = subscribeSupabaseClubUpdates(supabaseUser.id, () => {
+      void refreshFromSupabase();
+    });
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, [user, supabaseUser]);
 
   useEffect(() => {
@@ -477,8 +524,11 @@ export default function App() {
         };
 
         if (!user && supabaseUser) {
-          localPromoteBooking(booking.bookingId);
-          notifyPromoted();
+          void supabasePromoteBooking(booking.bookingId, supabaseUser.id)
+            .then(notifyPromoted)
+            .catch(() => {
+              promotedIdsRef.current.delete(booking.bookingId);
+            });
           return;
         }
 
@@ -551,8 +601,11 @@ export default function App() {
       };
 
       if (!user && supabaseUser) {
-        localCompleteBooking(booking.bookingId, cleanScore, slotKeys);
-        notifyFinished();
+        void supabaseCompleteBooking(booking.bookingId, cleanScore, slotKeys, supabaseUser.id)
+          .then(notifyFinished)
+          .catch(() => {
+            autoFinishedIdsRef.current.delete(booking.bookingId);
+          });
         return;
       }
 

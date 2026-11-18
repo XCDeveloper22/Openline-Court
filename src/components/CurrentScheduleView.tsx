@@ -16,7 +16,7 @@ import {
   partitionActiveSchedules
 } from '../data/courts';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { localCheckInBooking, localCompleteBooking } from '../lib/localClubStore';
+import { supabaseCheckInBooking, supabaseCompleteBooking } from '../lib/supabaseClub';
 import { CourtBooking, CourtId, CourtSchedule, CourtSlot } from '../types';
 
 interface CurrentScheduleViewProps {
@@ -40,6 +40,7 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(true);
   const [courtFilter, setCourtFilter] = useState<'all' | CourtId>('all');
 
@@ -83,10 +84,11 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
   );
 
   const handleCheckIn = async (booking: CourtBooking) => {
+    setActionError(null);
     setBusyId(booking.bookingId);
     try {
       if (!auth.currentUser) {
-        localCheckInBooking(booking.bookingId);
+        await supabaseCheckInBooking(booking.bookingId, uid);
         return;
       }
       const batch = writeBatch(db);
@@ -105,7 +107,11 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
 
       await batch.commit();
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `bookings/${booking.bookingId}`);
+      if (!auth.currentUser) {
+        setActionError(error instanceof Error ? error.message : 'Unable to check in.');
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, `bookings/${booking.bookingId}`);
+      }
     } finally {
       setBusyId(null);
     }
@@ -127,6 +133,7 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
   };
 
   const handleCompleteMatch = async (booking: CourtBooking) => {
+    setActionError(null);
     setBusyId(booking.bookingId);
     try {
       const cleanScore = scoreInput.trim().slice(0, 64);
@@ -135,7 +142,7 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
         if (booking.durationHours === 2) {
           keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
         }
-        localCompleteBooking(booking.bookingId, cleanScore, keys);
+        await supabaseCompleteBooking(booking.bookingId, cleanScore, keys, uid);
         setCompletingId(null);
         setScoreInput('');
         return;
@@ -165,7 +172,11 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
       setCompletingId(null);
       setScoreInput('');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
+      if (!auth.currentUser) {
+        setActionError(error instanceof Error ? error.message : 'Unable to complete schedule.');
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
+      }
     } finally {
       setBusyId(null);
     }
@@ -200,6 +211,12 @@ export const CurrentScheduleView: React.FC<CurrentScheduleViewProps> = ({
           </span>
         </div>
       </div>
+
+      {actionError && (
+        <div role="alert" className="p-3.5 rounded-xl border border-red-200 bg-red-50 text-xs text-red-800">
+          {actionError}
+        </div>
+      )}
 
       {/* Live 2-Court Status Strip (Visible on Mobile & Desktop) */}
       <section aria-label="Live 2-Court Status" className="grid grid-cols-1 md:grid-cols-2 gap-4 2xl:gap-5">

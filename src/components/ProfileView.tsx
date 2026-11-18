@@ -3,7 +3,7 @@ import { Bell, Check, Clock, ExternalLink, MapPin, Save } from 'lucide-react';
 import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { CLUB_INFO, COURTS } from '../data/courts';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { localSaveUserProfile } from '../lib/localClubStore';
+import { supabaseSaveUserProfile } from '../lib/supabaseClub';
 import { BrowserNotificationPermission } from '../lib/notifications';
 import {
   CourtBooking,
@@ -109,7 +109,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setSaving(true);
     try {
       if (!auth.currentUser) {
-        localSaveUserProfile(
+        await supabaseSaveUserProfile(
           profile.uid,
           {
             displayName: trimmedName,
@@ -149,7 +149,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setSavedNotice(true);
       window.setTimeout(() => setSavedNotice(false), 3000);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${profile.uid}`);
+      if (!auth.currentUser) {
+        setErrorMsg(err instanceof Error ? err.message : 'Unable to save profile to Supabase.');
+      } else {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${profile.uid}`);
+      }
     } finally {
       setSaving(false);
     }

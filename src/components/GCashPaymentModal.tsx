@@ -12,7 +12,7 @@ import {
   QueueAnalysis
 } from '../data/courts';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { localConfirmQRPayment } from '../lib/localClubStore';
+import { supabaseConfirmQRPayment } from '../lib/supabaseClub';
 import { CourtBooking, CourtSchedule, PaymentTransaction } from '../types';
 import { GCashQRCode } from './GCashQRCode';
 
@@ -120,7 +120,7 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       };
 
       if (!auth.currentUser) {
-        localConfirmQRPayment(
+        await supabaseConfirmQRPayment(
           booking.bookingId,
           {
             status: targetStatus,
@@ -168,7 +168,13 @@ export const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
 
       onPaymentSuccess(updatedBooking, txPayload as PaymentTransaction);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
+      if (!auth.currentUser) {
+        setErrorMsg(
+          error instanceof Error ? error.message : 'Unable to confirm payment in Supabase.'
+        );
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
+      }
     } finally {
       setSubmitting(false);
     }

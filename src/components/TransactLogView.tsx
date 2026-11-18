@@ -12,7 +12,7 @@ import {
   QueueAnalysis
 } from '../data/courts';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { localCancelUnpaidBooking } from '../lib/localClubStore';
+import { supabaseCancelUnpaidBooking } from '../lib/supabaseClub';
 import { CourtBooking, CourtSlot, PaymentTransaction } from '../types';
 
 interface TransactLogViewProps {
@@ -34,6 +34,7 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [busyCancelId, setBusyCancelId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const unpaidBookings = bookings
@@ -76,6 +77,7 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
   };
 
   const handleCancelUnpaid = async (booking: CourtBooking) => {
+    setCancelError(null);
     setBusyCancelId(booking.bookingId);
     try {
       const keys = [makeSlotKey(booking.courtId, booking.date, booking.startHour)];
@@ -83,7 +85,7 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
         keys.push(makeSlotKey(booking.courtId, booking.date, booking.startHour + 1));
       }
       if (!auth.currentUser) {
-        localCancelUnpaidBooking(booking.bookingId, keys);
+        await supabaseCancelUnpaidBooking(booking.bookingId, keys, booking.ownerId);
         return;
       }
       const batch = writeBatch(db);
@@ -98,7 +100,13 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
       });
       await batch.commit();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
+      if (!auth.currentUser) {
+        setCancelError(
+          error instanceof Error ? error.message : 'Unable to delete reservation in Supabase.'
+        );
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, `bookings/${booking.bookingId}`);
+      }
     } finally {
       setBusyCancelId(null);
     }
@@ -195,6 +203,12 @@ export const TransactLogView: React.FC<TransactLogViewProps> = ({
               <span>Awaiting GCash Payment ({unpaidBookings.length})</span>
             </h2>
           </div>
+
+          {cancelError && (
+            <div role="alert" className="m-4 p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-800">
+              {cancelError}
+            </div>
+          )}
 
           <div className="divide-y divide-pink-100">
             {unpaidBookings.map((booking) => {

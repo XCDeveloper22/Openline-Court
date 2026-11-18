@@ -37,7 +37,10 @@ import {
   QueueAnalysis
 } from '../data/courts';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { localConfirmQRPayment, localReserveBookingAndSlots } from '../lib/localClubStore';
+import {
+  supabaseConfirmQRPayment,
+  supabaseReserveBookingAndSlots
+} from '../lib/supabaseClub';
 import {
   CourtBooking,
   CourtId,
@@ -268,7 +271,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       }
 
       if (!auth.currentUser) {
-        const res = localReserveBookingAndSlots(
+        const res = await supabaseReserveBookingAndSlots(
           {
             ...newBookingPayload,
             createdAt: new Date().toISOString(),
@@ -322,7 +325,12 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       scrollToTop();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('insufficient')) {
+      if (!auth.currentUser) {
+        setSubmitError(msg || 'Unable to save booking to Supabase.');
+      } else if (
+        msg.toLowerCase().includes('permission') ||
+        msg.toLowerCase().includes('insufficient')
+      ) {
         try {
           const firstKey = makeSlotKey(selectedCourt.id, selectedDate, selectedHour);
           const slotSnap = await getDoc(doc(db, 'courtSlots', firstKey));
@@ -449,7 +457,7 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       };
 
       if (!auth.currentUser) {
-        localConfirmQRPayment(
+        await supabaseConfirmQRPayment(
           activePaymentBooking.bookingId,
           {
             status: targetStatus,
@@ -501,7 +509,13 @@ export const BookCourtView: React.FC<BookCourtViewProps> = ({
       setFlowStep('done');
       scrollToTop();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `bookings/${activePaymentBooking.bookingId}`);
+      if (!auth.currentUser) {
+        setPayError(
+          error instanceof Error ? error.message : 'Unable to confirm payment in Supabase.'
+        );
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, `bookings/${activePaymentBooking.bookingId}`);
+      }
     } finally {
       setPaying(false);
     }
